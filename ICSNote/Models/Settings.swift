@@ -21,6 +21,7 @@ final class AppSettings {
     var subfolder: String { didSet { save() } }
     var stripZoom: Bool { didSet { save() } }
     var stripTeams: Bool { didSet { save() } }
+    var playSuccessSound: Bool { didSet { save() } }
     var textReplacements: [TextReplacement] { didSet { save() } }
     var notesTemplate: String { didSet { save() } }
 
@@ -43,6 +44,7 @@ final class AppSettings {
         self.subfolder = defaults.string(forKey: "subfolder") ?? ""
         self.stripZoom = defaults.object(forKey: "stripZoom") as? Bool ?? true
         self.stripTeams = defaults.object(forKey: "stripTeams") as? Bool ?? true
+        self.playSuccessSound = defaults.object(forKey: "playSuccessSound") as? Bool ?? true
         self.notesTemplate = defaults.string(forKey: "notesTemplate") ?? "### Action Items\n\n- \n\n### Decisions\n\n- \n\n### Follow-ups\n\n- "
         if let data = defaults.data(forKey: "textReplacements"),
            let decoded = try? JSONDecoder().decode([TextReplacement].self, from: data) {
@@ -62,6 +64,7 @@ final class AppSettings {
         defaults.set(subfolder, forKey: "subfolder")
         defaults.set(stripZoom, forKey: "stripZoom")
         defaults.set(stripTeams, forKey: "stripTeams")
+        defaults.set(playSuccessSound, forKey: "playSuccessSound")
         defaults.set(notesTemplate, forKey: "notesTemplate")
         if let data = try? JSONEncoder().encode(textReplacements) {
             defaults.set(data, forKey: "textReplacements")

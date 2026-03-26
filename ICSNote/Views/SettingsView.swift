@@ -49,6 +49,9 @@ struct SettingsView: View {
                 Text("When enabled, conferencing boilerplate (dial-in numbers, meeting IDs, join links) is removed from the description. A small note is added indicating what was removed.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            Section("Feedback") {
+                Toggle("Play sound on successful conversion", isOn: $settings.playSuccessSound)
+            }
         }
         .formStyle(.grouped).padding()
     }

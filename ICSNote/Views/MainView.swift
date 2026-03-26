@@ -148,10 +148,18 @@ struct MainView: View {
                 .font(.caption2).foregroundStyle(.tertiary)
             }
             Spacer()
+            if viewModel.settings.isVaultConfigured {
+                Button { viewModel.openInObsidian(conversion) } label: {
+                    Image(systemName: "book").font(.caption2).foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Open in Obsidian")
+            }
             Button { viewModel.revealInFinder(conversion) } label: {
-                Image(systemName: "arrow.up.forward").font(.caption2).foregroundStyle(.secondary)
+                Image(systemName: "folder").font(.caption2).foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .help("Reveal in Finder")
         }
         .padding(10)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))

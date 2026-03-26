@@ -1,6 +1,7 @@
 import Foundation
 import SwiftUI
 import UniformTypeIdentifiers
+import AppKit
 import os
 
 struct RecentConversion: Identifiable {
@@ -204,6 +205,10 @@ final class AppViewModel {
             )
             recentConversions.insert(conversion, at: 0)
             Self.logger.info("Converted \(filename, privacy: .public)")
+
+            if settings.playSuccessSound {
+                NSSound(named: .init("Glass"))?.play()
+            }
         } catch {
             Self.logger.error("Failed to write markdown: \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
@@ -236,6 +241,31 @@ final class AppViewModel {
 
     func revealInFinder(_ conversion: RecentConversion) {
         NSWorkspace.shared.activateFileViewerSelecting([conversion.outputURL])
+    }
+
+    func openInObsidian(_ conversion: RecentConversion) {
+        // Build obsidian://open URL from vault path and file
+        // Format: obsidian://open?vault=VaultName&file=Subfolder/Filename
+        let vaultName = (settings.vaultPath as NSString).lastPathComponent
+        let fileWithinVault: String
+        if settings.subfolder.isEmpty {
+            fileWithinVault = conversion.filename.replacingOccurrences(of: ".md", with: "")
+        } else {
+            fileWithinVault = "\(settings.subfolder)/\(conversion.filename.replacingOccurrences(of: ".md", with: ""))"
+        }
+
+        var components = URLComponents()
+        components.scheme = "obsidian"
+        components.host = "open"
+        components.queryItems = [
+            URLQueryItem(name: "vault", value: vaultName),
+            URLQueryItem(name: "file", value: fileWithinVault),
+        ]
+
+        if let url = components.url {
+            Self.logger.info("Opening in Obsidian: \(url.absoluteString, privacy: .public)")
+            NSWorkspace.shared.open(url)
+        }
     }
 
     private func showError(message: String) {
