@@ -29,24 +29,34 @@ final class AppViewModel {
         self.settings = settings
     }
 
-    // UTType identifiers Outlook may use when dragging calendar items
-    private static let outlookCalendarType = "com.microsoft.outlook16.icalendar"
-    private static let icsType = "com.apple.ical.ics"
-    private static let calendarTextTypes = [outlookCalendarType, icsType, "public.calendar-event"]
+    // MARK: - Drop Handling
+
+    // Types to try, in priority order
+    private static let calendarTypes = [
+        "com.apple.ical.ics",
+        "public.calendar-event",
+        "com.microsoft.outlook16.icalendar",
+        "public.text",
+    ]
 
     func handleDrop(providers: [NSItemProvider]) -> Bool {
         for provider in providers {
-            // First try: Outlook or calendar-specific pasteboard types (raw ICS text)
-            for calType in Self.calendarTextTypes {
-                if provider.hasItemConformingToTypeIdentifier(calType) {
-                    provider.loadItem(forTypeIdentifier: calType, options: nil) { item, error in
+            let registeredTypes = provider.registeredTypeIdentifiers
+            Self.logger.info("Drop provider types: \(registeredTypes.joined(separator: ", "), privacy: .public)")
+
+            // Strategy 1: Try loadDataRepresentation for calendar types
+            // This loads data into memory, avoiding file promise timing issues
+            for typeId in Self.calendarTypes {
+                if provider.hasItemConformingToTypeIdentifier(typeId) {
+                    Self.logger.info("Loading data representation for type: \(typeId, privacy: .public)")
+                    provider.loadDataRepresentation(forTypeIdentifier: typeId) { data, error in
                         Task { @MainActor in
-                            if let data = item as? Data, let text = String(data: data, encoding: .utf8) {
-                                self.processICSText(text, sourceName: "Outlook Calendar Event")
-                            } else if let text = item as? String {
-                                self.processICSText(text, sourceName: "Outlook Calendar Event")
+                            if let data {
+                                self.handleDroppedData(data, typeId: typeId)
                             } else if let error {
-                                self.showError(message: "Failed to read calendar data: \(error.localizedDescription)")
+                                Self.logger.error("loadDataRepresentation(\(typeId, privacy: .public)) failed: \(error.localizedDescription, privacy: .public)")
+                                // Fall through to file URL strategy
+                                self.tryFileURL(provider: provider)
                             }
                         }
                     }
@@ -54,23 +64,60 @@ final class AppViewModel {
                 }
             }
 
-            // Fallback: file URL (from Finder)
-            if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
-                provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
-                    Task { @MainActor in
-                        if let data = item as? Data,
-                           let url = URL(dataRepresentation: data, relativeTo: nil) {
-                            self.processFile(at: url)
-                        } else if let error {
-                            self.showError(message: "Failed to read dropped file: \(error.localizedDescription)")
-                        }
-                    }
-                }
-                return true
-            }
+            // Strategy 2: File URL (Finder drops of .ics files)
+            tryFileURL(provider: provider)
+            return true
         }
         return false
     }
+
+    private func tryFileURL(provider: NSItemProvider) {
+        if provider.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier) {
+            provider.loadItem(forTypeIdentifier: UTType.fileURL.identifier, options: nil) { item, error in
+                Task { @MainActor in
+                    if let data = item as? Data,
+                       let url = URL(dataRepresentation: data, relativeTo: nil) {
+                        self.processFile(at: url)
+                    } else if let error {
+                        self.showError(message: "Failed to read dropped file: \(error.localizedDescription)")
+                    }
+                }
+            }
+        }
+    }
+
+    private func handleDroppedData(_ data: Data, typeId: String) {
+        Self.logger.info("Received \(data.count) bytes via \(typeId, privacy: .public)")
+
+        guard !data.isEmpty else {
+            Self.logger.error("Empty data from \(typeId, privacy: .public)")
+            showError(message: "The dropped item contained no data.")
+            return
+        }
+
+        // Try UTF-8 first, then UTF-16, then ASCII
+        let icsText: String
+        if let utf8 = String(data: data, encoding: .utf8) {
+            icsText = utf8
+        } else if let utf16 = String(data: data, encoding: .utf16) {
+            icsText = utf16
+        } else if let ascii = String(data: data, encoding: .ascii) {
+            icsText = ascii
+        } else {
+            let hex = data.prefix(40).map { String(format: "%02x", $0) }.joined(separator: " ")
+            showError(message: "Could not decode the dropped data. First bytes: \(hex)")
+            return
+        }
+
+        if icsText.contains("BEGIN:VCALENDAR") || icsText.contains("BEGIN:VEVENT") {
+            processICSText(icsText, sourceName: "Dropped Calendar Event")
+        } else {
+            let preview = String(icsText.prefix(100))
+            showError(message: "The dropped item does not contain calendar data.\n\nType: \(typeId)\nPreview: \(preview)")
+        }
+    }
+
+    // MARK: - Open / Import
 
     func handleOpenURL(_ url: URL) { processFile(at: url) }
 
@@ -80,6 +127,8 @@ final class AppViewModel {
         case .failure(let error): showError(message: "Failed to open file: \(error.localizedDescription)")
         }
     }
+
+    // MARK: - Processing
 
     func processICSText(_ text: String, sourceName: String) {
         guard settings.isVaultConfigured else {
@@ -125,6 +174,8 @@ final class AppViewModel {
         }
     }
 
+    // MARK: - Write & Record
+
     private func writeAndRecord(event: CalendarEvent) {
         do {
             let markdown = MarkdownGenerator.generate(
@@ -159,6 +210,8 @@ final class AppViewModel {
         }
     }
 
+    // MARK: - File Writing
+
     private func writeMarkdown(_ content: String, filename: String) throws -> URL {
         guard let outputDir = settings.outputDirectoryURL else {
             throw NSError(domain: "ICSNote", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault path not configured"])
@@ -178,6 +231,8 @@ final class AppViewModel {
         try content.write(to: fileURL, atomically: true, encoding: .utf8)
         return fileURL
     }
+
+    // MARK: - Utilities
 
     func revealInFinder(_ conversion: RecentConversion) {
         NSWorkspace.shared.activateFileViewerSelecting([conversion.outputURL])

@@ -7,32 +7,43 @@ struct MainView: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Spacer()
-                Button {
-                    openSettings()
-                } label: {
-                    Image(systemName: "gear").foregroundStyle(.secondary)
+        ZStack {
+            // AppKit-based drop target covers the entire window.
+            // Uses NSFilePromiseReceiver for reliable Outlook file promise handling.
+            DropTargetView(
+                onICSContent: { text, name in
+                    viewModel.processICSText(text, sourceName: name)
+                },
+                onDropTargeted: { targeted in
+                    viewModel.isDropTargeted = targeted
                 }
-                .buttonStyle(.plain)
-                .padding(8)
-            }
+            )
 
-            if viewModel.recentConversions.isEmpty {
-                dropZone.frame(maxHeight: .infinity)
-            } else {
-                compactDropZone.padding(.horizontal, 12).padding(.vertical, 8)
-                Divider()
-                recentConversionsList
-            }
+            VStack(spacing: 0) {
+                HStack {
+                    Spacer()
+                    Button {
+                        openSettings()
+                    } label: {
+                        Image(systemName: "gear").foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .padding(8)
+                }
 
-            statusBar
+                if viewModel.recentConversions.isEmpty {
+                    dropZone.frame(maxHeight: .infinity)
+                } else {
+                    compactDropZone.padding(.horizontal, 12).padding(.vertical, 8)
+                    Divider()
+                    recentConversionsList
+                }
+
+                statusBar
+            }
+            .allowsHitTesting(true)
         }
         .frame(width: 320, height: 400)
-        .onDrop(of: [.fileURL, .calendarEvent, .data], isTargeted: $viewModel.isDropTargeted) { providers in
-            viewModel.handleDrop(providers: providers)
-        }
         .onOpenURL { url in viewModel.handleOpenURL(url) }
         .fileImporter(
             isPresented: $showFileImporter,
@@ -82,6 +93,7 @@ struct MainView: View {
                 .font(.caption2).foregroundStyle(.tertiary)
         }
         .padding()
+        .allowsHitTesting(false)
     }
 
     private var compactDropZone: some View {
@@ -103,6 +115,7 @@ struct MainView: View {
                 }
             }
             .frame(height: 48)
+            .allowsHitTesting(false)
     }
 
     private var recentConversionsList: some View {
