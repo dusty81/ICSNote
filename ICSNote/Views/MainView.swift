@@ -4,13 +4,14 @@ import UniformTypeIdentifiers
 struct MainView: View {
     @Bindable var viewModel: AppViewModel
     @State private var showFileImporter = false
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 Spacer()
                 Button {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+                    openSettings()
                 } label: {
                     Image(systemName: "gear").foregroundStyle(.secondary)
                 }
@@ -29,7 +30,7 @@ struct MainView: View {
             statusBar
         }
         .frame(width: 320, height: 400)
-        .onDrop(of: [.fileURL], isTargeted: $viewModel.isDropTargeted) { providers in
+        .onDrop(of: [.fileURL, .calendarEvent, .data], isTargeted: $viewModel.isDropTargeted) { providers in
             viewModel.handleDrop(providers: providers)
         }
         .onOpenURL { url in viewModel.handleOpenURL(url) }
