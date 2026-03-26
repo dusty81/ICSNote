@@ -1,0 +1,63 @@
+BEGIN:VCALENDAR
+METHOD:PUBLISH
+PRODID:Microsoft Exchange Server 2010
+VERSION:2.0
+BEGIN:VTIMEZONE
+TZID:tzone://Microsoft/Utc
+BEGIN:STANDARD
+DTSTART:16010101T000000
+TZOFFSETFROM:+0000
+TZOFFSETTO:+0000
+END:STANDARD
+END:VTIMEZONE
+BEGIN:VEVENT
+ORGANIZER;CN=Alex User:mailto:DUser@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE;CN=Alice Example:
+ mailto:aexample@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;RSVP=TRUE;CN=Robert D. K
+ utch:mailto:RExample@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;RSVP=TRUE;CN=Neal Example
+ :mailto:HExample@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Landon R
+ ae:mailto:aexample@example.com
+DESCRIPTION:Session to discuss high level tasks.\nMOP: document.xlsx\n\n
+ Hi there\,\nAlex User is inviting you to a scheduled Zoom meeting.
+ \nJoin Zoom Meeting\nhttps://example.zoom.us/j/123456\nMeeting ID: 123 4
+ 56\nPasscode: abc\nDial:\n+1 301 715 8592 US\n+1 312 626 6799 US\nInter
+ national numbers\n\n
+RRULE:FREQ=WEEKLY;UNTIL=20270531T150000Z;INTERVAL=1;BYDAY=TH;WKST=SU
+UID:test-uid-001
+SUMMARY:Project Alpha (PA) Strategy Meeting
+DTSTART:20260108T160000Z
+DTEND:20260108T164500Z
+CLASS:PUBLIC
+STATUS:CONFIRMED
+CATEGORIES:Projects
+LOCATION:https://example.zoom.us/j/123456
+END:VEVENT
+BEGIN:VEVENT
+ORGANIZER;CN=Alex User:mailto:DUser@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;RSVP=TRUE;CN=Alice Example:
+ mailto:aexample@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=DECLINED;RSVP=TRUE;CN=Robert D. K
+ utch:mailto:RExample@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=TENTATIVE;RSVP=TRUE;CN=Neal Example
+ :mailto:HExample@example.com
+ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=NEEDS-ACTION;RSVP=TRUE;CN=Landon R
+ ae:mailto:aexample@example.com
+DESCRIPTION:Session to discuss high level tasks.\nMOP: document.xlsx\n\n
+ Hi there\,\nAlex User is inviting you to a scheduled Zoom meeting.
+ \nJoin Zoom Meeting\nhttps://example.zoom.us/j/123456\nMeeting ID: 123 4
+ 56\nPasscode: abc\nDial:\n+1 301 715 8592 US\n+1 312 626 6799 US\nInter
+ national numbers\n\n
+RECURRENCE-ID:20260115T160000Z
+UID:test-uid-001
+SUMMARY:Project Alpha (PA) Strategy Meeting
+DTSTART:20260120T210000Z
+DTEND:20260120T213000Z
+CLASS:PUBLIC
+STATUS:CONFIRMED
+CATEGORIES:Projects
+LOCATION:https://example.zoom.us/j/123456
+END:VEVENT
+END:VCALENDAR
