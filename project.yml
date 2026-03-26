@@ -38,5 +38,6 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.icsnote.tests
+        GENERATE_INFOPLIST_FILE: YES
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ICSNote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ICSNote"
         BUNDLE_LOADER: "$(TEST_HOST)"
