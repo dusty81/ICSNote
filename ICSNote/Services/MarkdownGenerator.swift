@@ -149,21 +149,44 @@ enum MarkdownGenerator {
     // MARK: - Stripping Helpers
 
     static func stripZoomInfo(from text: String) -> String {
-        let patterns = [
-            "(?s)\\[?https?://[^\\]]*zoom\\.[^\\]]*\\.png[^\\n]*\\n.*?International numbers[^\\n]*",
-            "(?s)Join Zoom Meeting\\n.*?International numbers[^\\n]*",
-            "(?s)Hi there,\\n.*? is inviting you to a scheduled Zoom meeting\\.\\n.*?International numbers[^\\n]*",
+        // Zoom blocks from Outlook come in various formats:
+        // 1. Plain: "Join Zoom Meeting\nhttps://...zoom.us/...\nMeeting ID: ...\nDial:...\nInternational numbers"
+        // 2. SafeLinks: URLs wrapped in <https://nam11.safelinks.protection.outlook.com/?url=...>
+        // 3. H.323/SIP: "Join from an H.323/SIP room system\nH.323:...\nSIP:...\nPasscode:"
+        // 4. Zoom logo: "[https://...zoom...png]<safelink>"
+        //
+        // Strategy: find the START of the Zoom block, then consume everything through
+        // the end markers (International numbers, SIP passcode, or last Zoom-related line)
+
+        let startPatterns = [
+            "\\[https?://[^\\]]*zoom[^\\]]*\\.png\\]",   // Zoom logo image reference
+            "Hi there,\\n.*? is inviting you to a scheduled Zoom meeting\\.",
+            "Join Zoom Meeting",
         ]
+
+        let endPatterns = [
+            "International numbers[^\\n]*",               // Phone dial-in ending
+            "\\d+@zoomcrc\\.com\\nPasscode:\\n\\d+",      // SIP ending
+            "\\d+@zoomcrc\\.com",                         // SIP without trailing passcode
+        ]
+
         var result = text
-        for pattern in patterns {
-            if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-                result = regex.stringByReplacingMatches(
-                    in: result,
-                    range: NSRange(result.startIndex..., in: result),
-                    withTemplate: ""
-                )
+        for startPattern in startPatterns {
+            for endPattern in endPatterns {
+                let pattern = "(?s)\(startPattern).*?\(endPattern)"
+                if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
+                    let newResult = regex.stringByReplacingMatches(
+                        in: result,
+                        range: NSRange(result.startIndex..., in: result),
+                        withTemplate: ""
+                    )
+                    if newResult != result {
+                        return newResult // Found and stripped — done
+                    }
+                }
             }
         }
+
         return result
     }
 

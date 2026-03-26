@@ -97,6 +97,20 @@ final class MarkdownGeneratorTests: XCTestCase {
         XCTAssertFalse(markdown.contains("Meeting ID"))
     }
 
+    func testStripsZoomSafeLinksFormat() {
+        // Outlook wraps URLs in SafeLinks and uses H.323/SIP instead of phone dial-in
+        let event = CalendarEvent(
+            title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
+            description: "[https://us06st2.zoom.us/static/6.3.54678/image/new/ZoomLogo_110_25.png]<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fzoom.com>\nHi there,\nDavid Example is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.zoom.us%2Fj%2F123>\nMeeting URL:\nhttps://example.zoom.us/j/123\nMeeting ID:\n860 7531 7442\nPasscode:\nabc123\nJoin from an H.323/SIP room system\nH.323:\n144.195.19.161 (US West)\nSIP:\n86075317442@zoomcrc.com\nPasscode:\n7321250",
+            location: "", categories: [], status: ""
+        )
+        let markdown = MarkdownGenerator.generate(event: event, stripZoom: true)
+        XCTAssertTrue(markdown.contains("*Zoom meeting information removed.*"))
+        XCTAssertFalse(markdown.contains("Join Zoom Meeting"))
+        XCTAssertFalse(markdown.contains("zoomcrc.com"))
+        XCTAssertFalse(markdown.contains("H.323"))
+    }
+
     func testDoesNotStripZoomWhenDisabled() {
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
