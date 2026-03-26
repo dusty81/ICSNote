@@ -1,0 +1,42 @@
+name: ICSNote
+options:
+  bundleIdPrefix: com.icsnote
+  deploymentTarget:
+    macOS: "14.0"
+  xcodeVersion: "16.0"
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
+targets:
+  ICSNote:
+    type: application
+    platform: macOS
+    sources:
+      - ICSNote
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.icsnote.app
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        INFOPLIST_FILE: ICSNote/Info.plist
+        GENERATE_INFOPLIST_FILE: false
+    resources:
+      - ICSNote/Resources
+
+  ICSNoteTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests
+      - TestFixtures
+    dependencies:
+      - target: ICSNote
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.icsnote.tests
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/ICSNote.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/ICSNote"
+        BUNDLE_LOADER: "$(TEST_HOST)"
