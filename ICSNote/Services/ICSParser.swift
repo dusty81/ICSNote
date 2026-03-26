@@ -94,8 +94,18 @@ enum ICSParser {
 
     private static func parseVEvent(_ vevent: String) -> CalendarEvent {
         let title = extractProperty("SUMMARY", from: vevent) ?? "Untitled Event"
-        let startDate = extractDate(property: "DTSTART", from: vevent) ?? Date()
-        let endDate = extractDate(property: "DTEND", from: vevent) ?? startDate
+        var startDate = extractDate(property: "DTSTART", from: vevent) ?? Date()
+        var endDate = extractDate(property: "DTEND", from: vevent) ?? startDate
+
+        // If this is a recurring event with a past start date, advance to
+        // the next upcoming occurrence using the RRULE
+        if let rrule = extractProperty("RRULE", from: vevent), startDate < Date() {
+            let duration = endDate.timeIntervalSince(startDate)
+            if let nextStart = nextOccurrence(from: startDate, rrule: rrule) {
+                startDate = nextStart
+                endDate = nextStart.addingTimeInterval(duration)
+            }
+        }
         let organizer = extractOrganizer(from: vevent)
         let attendees = extractAttendees(from: vevent)
         let description = unescapeICSText(extractProperty("DESCRIPTION", from: vevent) ?? "")
@@ -204,6 +214,73 @@ enum ICSParser {
         guard let range = line.range(of: "mailto:", options: .caseInsensitive) else { return nil }
         let email = String(line[range.upperBound...])
         return email.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: - RRULE Occurrence Calculation
+
+    /// Given a start date and an RRULE string, compute the next occurrence >= now.
+    /// Supports DAILY, WEEKLY, MONTHLY, YEARLY with INTERVAL and UNTIL/COUNT.
+    static func nextOccurrence(from startDate: Date, rrule: String) -> Date? {
+        let params = parseRRuleParams(rrule)
+        guard let freq = params["FREQ"] else { return nil }
+
+        let interval = Int(params["INTERVAL"] ?? "1") ?? 1
+        let calendar = Calendar.current
+        let now = Date()
+
+        // Parse UNTIL if present
+        var until: Date?
+        if let untilStr = params["UNTIL"] {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = TimeZone(identifier: "UTC")
+            if untilStr.hasSuffix("Z") {
+                formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+            } else {
+                formatter.dateFormat = "yyyyMMdd'T'HHmmss"
+            }
+            until = formatter.date(from: untilStr)
+        }
+
+        let component: Calendar.Component
+        switch freq {
+        case "DAILY": component = .day
+        case "WEEKLY": component = .weekOfYear
+        case "MONTHLY": component = .month
+        case "YEARLY": component = .year
+        default: return nil
+        }
+
+        // Step forward from startDate by interval until we find a date >= now
+        var candidate = startDate
+        // Safety limit to avoid infinite loops
+        for _ in 0..<10000 {
+            if candidate >= now {
+                // Check UNTIL bound
+                if let until, candidate > until {
+                    return nil // Series has ended
+                }
+                return candidate
+            }
+            guard let next = calendar.date(byAdding: component, value: interval, to: candidate) else {
+                return nil
+            }
+            candidate = next
+        }
+
+        return nil
+    }
+
+    /// Parse RRULE parameters like "FREQ=WEEKLY;INTERVAL=1;BYDAY=TH;UNTIL=20260531T150000Z"
+    private static func parseRRuleParams(_ rrule: String) -> [String: String] {
+        var params: [String: String] = [:]
+        for part in rrule.components(separatedBy: ";") {
+            let kv = part.components(separatedBy: "=")
+            if kv.count == 2 {
+                params[kv[0]] = kv[1]
+            }
+        }
+        return params
     }
 
     // MARK: - Text Unescaping

@@ -112,6 +112,40 @@ final class ICSParserTests: XCTestCase {
         XCTAssertFalse(event.description.contains("\\,"))
     }
 
+    // MARK: - RRULE Occurrence Calculation
+
+    func testNextOccurrenceWeekly() {
+        // A weekly event starting 3 weeks ago should advance to the next future occurrence
+        let pastStart = Calendar.current.date(byAdding: .weekOfYear, value: -3, to: Date())!
+        let rrule = "FREQ=WEEKLY;INTERVAL=1;BYDAY=TH"
+        let next = ICSParser.nextOccurrence(from: pastStart, rrule: rrule)
+        XCTAssertNotNil(next)
+        XCTAssertTrue(next! >= Date())
+        // Should be within the next 7 days
+        XCTAssertTrue(next! < Calendar.current.date(byAdding: .day, value: 8, to: Date())!)
+    }
+
+    func testNextOccurrenceRespectsUntil() {
+        // A weekly event that ended in the past should return nil
+        let pastStart = Calendar.current.date(byAdding: .month, value: -6, to: Date())!
+        let pastEnd = Calendar.current.date(byAdding: .month, value: -3, to: Date())!
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        let untilStr = formatter.string(from: pastEnd)
+        let rrule = "FREQ=WEEKLY;INTERVAL=1;UNTIL=\(untilStr)"
+        let next = ICSParser.nextOccurrence(from: pastStart, rrule: rrule)
+        XCTAssertNil(next)
+    }
+
+    func testNextOccurrenceBiWeekly() {
+        let pastStart = Calendar.current.date(byAdding: .weekOfYear, value: -4, to: Date())!
+        let rrule = "FREQ=WEEKLY;INTERVAL=2"
+        let next = ICSParser.nextOccurrence(from: pastStart, rrule: rrule)
+        XCTAssertNotNil(next)
+        XCTAssertTrue(next! >= Date())
+    }
+
     // MARK: - Error Handling
 
     func testThrowsOnEmptyInput() {
