@@ -21,6 +21,9 @@ build/
 .build/
 Package.resolved
 
+# Release artifacts
+*.zip
+
 # Misc
 *.swp
 *~
