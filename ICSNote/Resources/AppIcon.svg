@@ -1,0 +1,164 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" width="1024" height="1024">
+  <defs>
+    <!-- Background gradient - dark slate with purple tint -->
+    <linearGradient id="bgGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#2D1B69"/>
+      <stop offset="100%" stop-color="#1A1A2E"/>
+    </linearGradient>
+
+    <!-- Calendar page gradient -->
+    <linearGradient id="pageGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#FFFFFF"/>
+      <stop offset="100%" stop-color="#E8E4F0"/>
+    </linearGradient>
+
+    <!-- Calendar header gradient (purple) -->
+    <linearGradient id="headerGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9B5DE5"/>
+      <stop offset="100%" stop-color="#7C3AED"/>
+    </linearGradient>
+
+    <!-- Obsidian gem gradient -->
+    <linearGradient id="gemGrad" x1="0.2" y1="0" x2="0.8" y2="1">
+      <stop offset="0%" stop-color="#A78BFA"/>
+      <stop offset="40%" stop-color="#7C3AED"/>
+      <stop offset="100%" stop-color="#4C1D95"/>
+    </linearGradient>
+
+    <!-- Gem highlight -->
+    <linearGradient id="gemHighlight" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#C4B5FD" stop-opacity="0.7"/>
+      <stop offset="100%" stop-color="#7C3AED" stop-opacity="0"/>
+    </linearGradient>
+
+    <!-- Shadow for calendar -->
+    <filter id="calShadow" x="-10%" y="-5%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="12" stdDeviation="20" flood-color="#000000" flood-opacity="0.35"/>
+    </filter>
+
+    <!-- Glow for gem -->
+    <filter id="gemGlow" x="-30%" y="-30%" width="160%" height="160%">
+      <feGaussianBlur in="SourceGraphic" stdDeviation="8" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.486  0 0 0 0 0.228  0 0 0 0 0.929  0 0 0 0.4 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square (will be masked by macOS, but provides visual base) -->
+  <rect x="0" y="0" width="1024" height="1024" rx="224" ry="224" fill="url(#bgGrad)"/>
+
+  <!-- Subtle radial glow in center -->
+  <circle cx="512" cy="480" r="350" fill="#7C3AED" opacity="0.08"/>
+
+  <!-- Calendar page — slightly rotated to suggest "dropping/landing" motion -->
+  <g transform="translate(512, 470) rotate(-3) translate(-512, -470)" filter="url(#calShadow)">
+    <!-- Page body -->
+    <rect x="220" y="200" width="584" height="580" rx="32" ry="32" fill="url(#pageGrad)"/>
+
+    <!-- Calendar header bar -->
+    <rect x="220" y="200" width="584" height="120" rx="32" ry="32" fill="url(#headerGrad)"/>
+    <!-- Square off bottom corners of header -->
+    <rect x="220" y="280" width="584" height="40" fill="url(#headerGrad)"/>
+
+    <!-- Calendar ring holes -->
+    <circle cx="340" cy="200" r="16" fill="#1A1A2E"/>
+    <circle cx="440" cy="200" r="16" fill="#1A1A2E"/>
+    <circle cx="584" cy="200" r="16" fill="#1A1A2E"/>
+    <circle cx="684" cy="200" r="16" fill="#1A1A2E"/>
+
+    <!-- Month text placeholder — simple lines suggesting text -->
+    <rect x="390" y="240" width="244" height="16" rx="8" fill="white" opacity="0.9"/>
+    <rect x="430" y="268" width="164" height="10" rx="5" fill="white" opacity="0.5"/>
+
+    <!-- Calendar grid lines -->
+    <!-- Horizontal lines -->
+    <line x1="260" y1="390" x2="764" y2="390" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="260" y1="470" x2="764" y2="470" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="260" y1="550" x2="764" y2="550" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="260" y1="630" x2="764" y2="630" stroke="#D4D0E0" stroke-width="1.5"/>
+
+    <!-- Vertical lines -->
+    <line x1="292" y1="340" x2="292" y2="700" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="364" y1="340" x2="364" y2="700" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="436" y1="340" x2="436" y2="700" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="512" y1="340" x2="512" y2="700" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="584" y1="340" x2="584" y2="700" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="656" y1="340" x2="656" y2="700" stroke="#D4D0E0" stroke-width="1.5"/>
+    <line x1="728" y1="340" x2="728" y2="700" stroke="#D4D0E0" stroke-width="1.5"/>
+
+    <!-- Day numbers — small, subtle -->
+    <g fill="#6B5B95" font-family="-apple-system, SF Pro Display, Helvetica Neue, sans-serif" font-size="28" font-weight="500">
+      <!-- Row 1 -->
+      <text x="315" y="375" text-anchor="middle">1</text>
+      <text x="387" y="375" text-anchor="middle">2</text>
+      <text x="462" y="375" text-anchor="middle">3</text>
+      <text x="536" y="375" text-anchor="middle">4</text>
+      <text x="610" y="375" text-anchor="middle">5</text>
+      <text x="682" y="375" text-anchor="middle">6</text>
+      <text x="748" y="375" text-anchor="middle">7</text>
+      <!-- Row 2 -->
+      <text x="315" y="455" text-anchor="middle">8</text>
+      <text x="387" y="455" text-anchor="middle">9</text>
+      <text x="462" y="455" text-anchor="middle">10</text>
+      <text x="536" y="455" text-anchor="middle">11</text>
+      <text x="610" y="455" text-anchor="middle">12</text>
+      <text x="682" y="455" text-anchor="middle">13</text>
+      <text x="748" y="455" text-anchor="middle">14</text>
+      <!-- Row 3 -->
+      <text x="315" y="535" text-anchor="middle">15</text>
+      <text x="387" y="535" text-anchor="middle">16</text>
+      <text x="462" y="535" text-anchor="middle">17</text>
+      <text x="536" y="535" text-anchor="middle">18</text>
+      <text x="610" y="535" text-anchor="middle">19</text>
+      <text x="682" y="535" text-anchor="middle">20</text>
+      <text x="748" y="535" text-anchor="middle">21</text>
+      <!-- Row 4 -->
+      <text x="315" y="615" text-anchor="middle">22</text>
+      <text x="387" y="615" text-anchor="middle">23</text>
+      <text x="462" y="615" text-anchor="middle">24</text>
+      <text x="536" y="615" text-anchor="middle">25</text>
+      <text x="610" y="615" text-anchor="middle">26</text>
+      <text x="682" y="615" text-anchor="middle">27</text>
+      <text x="748" y="615" text-anchor="middle">28</text>
+    </g>
+
+    <!-- Day of week headers -->
+    <g fill="#9B5DE5" font-family="-apple-system, SF Pro Display, Helvetica Neue, sans-serif" font-size="20" font-weight="600" opacity="0.8">
+      <text x="315" y="348" text-anchor="middle">S</text>
+      <text x="387" y="348" text-anchor="middle">M</text>
+      <text x="462" y="348" text-anchor="middle">T</text>
+      <text x="536" y="348" text-anchor="middle">W</text>
+      <text x="610" y="348" text-anchor="middle">T</text>
+      <text x="682" y="348" text-anchor="middle">F</text>
+      <text x="748" y="348" text-anchor="middle">S</text>
+    </g>
+  </g>
+
+  <!-- Obsidian gem/crystal — positioned at bottom-right, overlapping the calendar corner -->
+  <g transform="translate(680, 600)" filter="url(#gemGlow)">
+    <!-- Main gem shape (diamond/crystal) -->
+    <polygon points="80,0 160,90 130,200 30,200 0,90" fill="url(#gemGrad)" stroke="#A78BFA" stroke-width="2"/>
+
+    <!-- Facet lines for crystal look -->
+    <polygon points="80,0 60,90 100,90" fill="url(#gemHighlight)"/>
+    <line x1="80" y1="0" x2="60" y2="90" stroke="#A78BFA" stroke-width="1.5" opacity="0.5"/>
+    <line x1="80" y1="0" x2="100" y2="90" stroke="#A78BFA" stroke-width="1.5" opacity="0.5"/>
+    <line x1="0" y1="90" x2="60" y2="90" stroke="#A78BFA" stroke-width="1" opacity="0.4"/>
+    <line x1="100" y1="90" x2="160" y2="90" stroke="#A78BFA" stroke-width="1" opacity="0.4"/>
+    <line x1="60" y1="90" x2="30" y2="200" stroke="#A78BFA" stroke-width="1" opacity="0.3"/>
+    <line x1="100" y1="90" x2="130" y2="200" stroke="#A78BFA" stroke-width="1" opacity="0.3"/>
+    <line x1="60" y1="90" x2="100" y2="90" stroke="#C4B5FD" stroke-width="1" opacity="0.6"/>
+
+    <!-- Bright highlight facet -->
+    <polygon points="80,0 100,90 160,90" fill="white" opacity="0.1"/>
+  </g>
+
+  <!-- Small arrow/chevron suggesting transformation (calendar -> note) -->
+  <g transform="translate(512, 830)" opacity="0.6">
+    <path d="M-30,-12 L0,8 L30,-12" fill="none" stroke="#C4B5FD" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M-30,0 L0,20 L30,0" fill="none" stroke="#C4B5FD" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>
