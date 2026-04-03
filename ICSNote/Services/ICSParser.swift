@@ -97,15 +97,9 @@ enum ICSParser {
         var startDate = extractDate(property: "DTSTART", from: vevent) ?? Date()
         var endDate = extractDate(property: "DTEND", from: vevent) ?? startDate
 
-        // If this is a recurring event with a past start date, advance to
-        // the next upcoming occurrence using the RRULE
-        if let rrule = extractProperty("RRULE", from: vevent), startDate < Date() {
-            let duration = endDate.timeIntervalSince(startDate)
-            if let nextStart = nextOccurrence(from: startDate, rrule: rrule) {
-                startDate = nextStart
-                endDate = nextStart.addingTimeInterval(duration)
-            }
-        }
+        // Detect recurring events — the ViewModel will prompt the user for the date
+        let isRecurring = extractProperty("RRULE", from: vevent) != nil
+
         let organizer = extractOrganizer(from: vevent)
         let attendees = extractAttendees(from: vevent)
         let description = unescapeICSText(extractProperty("DESCRIPTION", from: vevent) ?? "")
@@ -123,7 +117,8 @@ enum ICSParser {
             description: description,
             location: location,
             categories: categories,
-            status: status
+            status: status,
+            isRecurring: isRecurring
         )
     }
 

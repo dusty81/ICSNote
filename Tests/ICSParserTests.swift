@@ -101,6 +101,72 @@ final class ICSParserTests: XCTestCase {
         XCTAssertEqual(components.day, 20)
     }
 
+    func testRecurringEventMarkedAsRecurring() throws {
+        let ics = try loadFixture("recurring-meeting")
+        let event = try ICSParser.parse(ics)
+        // The first VEVENT has an RRULE; the selected VEVENT (Jan 20) has RECURRENCE-ID but no RRULE
+        // Only VEVENTs with RRULE are marked recurring
+        // selectNextOccurrence picks the Jan 20 VEVENT which has no RRULE
+        XCTAssertFalse(event.isRecurring)
+    }
+
+    func testSingleVEventWithRRuleIsRecurring() throws {
+        let ics = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        BEGIN:VEVENT
+        SUMMARY:Weekly Standup
+        DTSTART:20260101T100000Z
+        DTEND:20260101T103000Z
+        RRULE:FREQ=WEEKLY;INTERVAL=1;BYDAY=TH
+        STATUS:CONFIRMED
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let event = try ICSParser.parse(ics)
+        XCTAssertTrue(event.isRecurring)
+    }
+
+    func testSimpleMeetingNotRecurring() throws {
+        let ics = try loadFixture("simple-meeting")
+        let event = try ICSParser.parse(ics)
+        XCTAssertFalse(event.isRecurring)
+    }
+
+    func testWithDatePreservesTimeAndShiftsDate() {
+        var c = DateComponents()
+        c.year = 2026; c.month = 1; c.day = 8
+        c.hour = 16; c.minute = 0; c.second = 0
+        c.timeZone = TimeZone.current
+        let calendar = Calendar.current
+        let start = calendar.date(from: c)!
+        let end = start.addingTimeInterval(45 * 60) // 45 min
+
+        let event = CalendarEvent(
+            title: "Test", startDate: start, endDate: end, organizer: nil,
+            attendees: [], description: "", location: "", categories: [], status: ""
+        )
+
+        // Shift to April 3, 2026
+        var target = DateComponents()
+        target.year = 2026; target.month = 4; target.day = 3
+        target.hour = 12; target.minute = 0
+        target.timeZone = TimeZone.current
+        let targetDate = calendar.date(from: target)!
+
+        let shifted = event.withDate(targetDate)
+        let shiftedComponents = calendar.dateComponents([.year, .month, .day, .hour, .minute], from: shifted.startDate)
+        XCTAssertEqual(shiftedComponents.year, 2026)
+        XCTAssertEqual(shiftedComponents.month, 4)
+        XCTAssertEqual(shiftedComponents.day, 3)
+        XCTAssertEqual(shiftedComponents.hour, 16) // original time preserved
+        XCTAssertEqual(shiftedComponents.minute, 0)
+
+        // Duration preserved (45 min)
+        let duration = shifted.endDate.timeIntervalSince(shifted.startDate)
+        XCTAssertEqual(duration, 45 * 60, accuracy: 1)
+    }
+
     // MARK: - Text Unescaping
 
     func testUnescapesDescriptionText() throws {

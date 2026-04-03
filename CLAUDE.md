@@ -44,7 +44,7 @@ The drop handler in `performDragOperation` uses three strategies in priority ord
 ### ICS Parsing Specifics
 
 - **Line unfolding** must happen first (RFC 5545: continuation lines start with space/tab).
-- **RRULE expansion**: when a single VEVENT has a past DTSTART and an RRULE, the parser advances to the next upcoming occurrence. This is critical because Outlook puts the series definition (first occurrence date) on the pasteboard, not the specific occurrence the user dragged.
+- **Recurring event handling**: when a VEVENT has an RRULE, the parser sets `isRecurring: true` on the `CalendarEvent`. The ViewModel then shows a date picker dialog (defaulting to today) so the user can confirm or change the occurrence date. This is critical because Outlook puts the series definition (first occurrence date) on the pasteboard, not the specific occurrence the user dragged. The `CalendarEvent.withDate(_:)` method shifts the event to the chosen date while preserving the original time-of-day and duration.
 - **Text replacements** are applied to titles before filename sanitization, so "1:1" becomes "One on One" before the colon would be stripped.
 
 ### Zoom/Teams Stripping

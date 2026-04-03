@@ -26,6 +26,11 @@ final class AppViewModel {
     var showError = false
     var isDropTargeted = false
 
+    // Recurring event date picker state
+    var pendingEvent: CalendarEvent?
+    var showDatePicker = false
+    var selectedDate = Date()
+
     init(settings: AppSettings) {
         self.settings = settings
     }
@@ -142,7 +147,7 @@ final class AppViewModel {
         }
         do {
             let event = try ICSParser.parse(text)
-            writeAndRecord(event: event)
+            handleParsedEvent(event)
         } catch {
             Self.logger.error("Failed to process ICS from \(sourceName, privacy: .public): \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
@@ -168,11 +173,36 @@ final class AppViewModel {
                 return
             }
             let event = try ICSParser.parse(icsText)
-            writeAndRecord(event: event)
+            handleParsedEvent(event)
         } catch {
             Self.logger.error("Failed to process ICS: \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
         }
+    }
+
+    // MARK: - Recurring Event Handling
+
+    private func handleParsedEvent(_ event: CalendarEvent) {
+        if event.isRecurring {
+            pendingEvent = event
+            selectedDate = Date()
+            showDatePicker = true
+        } else {
+            writeAndRecord(event: event)
+        }
+    }
+
+    func confirmRecurringDate() {
+        guard let event = pendingEvent else { return }
+        let adjusted = event.withDate(selectedDate)
+        writeAndRecord(event: adjusted)
+        pendingEvent = nil
+        showDatePicker = false
+    }
+
+    func cancelRecurringDate() {
+        pendingEvent = nil
+        showDatePicker = false
     }
 
     // MARK: - Write & Record

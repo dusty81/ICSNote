@@ -54,6 +54,9 @@ struct MainView: View {
                 viewModel.handleFileImport(result: .success(url))
             }
         }
+        .sheet(isPresented: $viewModel.showDatePicker) {
+            RecurringDatePickerView(viewModel: viewModel)
+        }
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK") {}
         } message: {
@@ -181,5 +184,74 @@ struct MainView: View {
         let vault = (viewModel.settings.vaultPath as NSString).lastPathComponent
         if viewModel.settings.subfolder.isEmpty { return vault }
         return "\(vault) / \(viewModel.settings.subfolder)"
+    }
+}
+
+// MARK: - Recurring Date Picker
+
+struct RecurringDatePickerView: View {
+    @Bindable var viewModel: AppViewModel
+    @Environment(\.dismiss) private var dismiss
+
+    private var timeRangeText: String {
+        guard let event = viewModel.pendingEvent else { return "" }
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        f.timeZone = TimeZone.current
+        return "\(f.string(from: event.startDate)) - \(f.string(from: event.endDate))"
+    }
+
+    var body: some View {
+        VStack(spacing: 16) {
+            Image(systemName: "arrow.triangle.2.circlepath")
+                .font(.title)
+                .foregroundStyle(.secondary)
+
+            Text("Recurring Event")
+                .font(.headline)
+
+            if let event = viewModel.pendingEvent {
+                Text(event.title)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .multilineTextAlignment(.center)
+
+                Text(timeRangeText)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+            }
+
+            Divider()
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text("Meeting date:")
+                    .font(.callout)
+                DatePicker(
+                    "Date",
+                    selection: $viewModel.selectedDate,
+                    displayedComponents: .date
+                )
+                .datePickerStyle(.field)
+                .labelsHidden()
+            }
+
+            HStack(spacing: 12) {
+                Button("Cancel") {
+                    viewModel.cancelRecurringDate()
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+
+                Button("Create Note") {
+                    viewModel.confirmRecurringDate()
+                    dismiss()
+                }
+                .keyboardShortcut(.defaultAction)
+                .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(24)
+        .frame(width: 280)
     }
 }

@@ -46,4 +46,42 @@ struct CalendarEvent: Equatable {
     let location: String
     let categories: [String]
     let status: String
+    let isRecurring: Bool
+
+    init(title: String, startDate: Date, endDate: Date, organizer: Organizer?,
+         attendees: [Attendee], description: String, location: String,
+         categories: [String], status: String, isRecurring: Bool = false) {
+        self.title = title
+        self.startDate = startDate
+        self.endDate = endDate
+        self.organizer = organizer
+        self.attendees = attendees
+        self.description = description
+        self.location = location
+        self.categories = categories
+        self.status = status
+        self.isRecurring = isRecurring
+    }
+
+    /// Returns a copy of this event with the date shifted to `date`,
+    /// preserving the original time-of-day and duration.
+    func withDate(_ date: Date) -> CalendarEvent {
+        let calendar = Calendar.current
+        let timeComponents = calendar.dateComponents([.hour, .minute, .second], from: startDate)
+        var newComponents = calendar.dateComponents([.year, .month, .day], from: date)
+        newComponents.hour = timeComponents.hour
+        newComponents.minute = timeComponents.minute
+        newComponents.second = timeComponents.second
+
+        let duration = endDate.timeIntervalSince(startDate)
+        guard let newStart = calendar.date(from: newComponents) else { return self }
+        let newEnd = newStart.addingTimeInterval(duration)
+
+        return CalendarEvent(
+            title: title, startDate: newStart, endDate: newEnd,
+            organizer: organizer, attendees: attendees, description: description,
+            location: location, categories: categories, status: status,
+            isRecurring: isRecurring
+        )
+    }
 }

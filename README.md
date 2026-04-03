@@ -18,7 +18,7 @@ A native macOS app that converts ICS calendar files into Obsidian-compatible mar
 - **Title text replacements** -- configurable find/replace rules (e.g., "1:1" to "One on One", strip "Fwd:", "RE:")
 - **Configurable output** -- pick your Obsidian vault and subfolder
 - **Notes template** -- default sections for Action Items, Decisions, and Follow-ups
-- **Recurring meeting support** -- RRULE parsing advances to the next occurrence (DAILY, WEEKLY, MONTHLY, YEARLY with INTERVAL and UNTIL)
+- **Recurring meeting support** -- detects RRULE series and prompts with a date picker (defaults to today) so you always get the correct occurrence date
 - **Recent conversions list** with Open in Obsidian and Reveal in Finder buttons
 - **Success sound** on conversion (toggleable)
 - **Duplicate file avoidance** -- appends a numeric suffix when a file already exists
