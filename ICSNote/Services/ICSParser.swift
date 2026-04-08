@@ -97,8 +97,11 @@ enum ICSParser {
         var startDate = extractDate(property: "DTSTART", from: vevent) ?? Date()
         var endDate = extractDate(property: "DTEND", from: vevent) ?? startDate
 
-        // Detect recurring events — the ViewModel will prompt the user for the date
+        // Detect recurring events — the ViewModel will prompt the user for the date.
+        // RRULE means this is a series definition; RECURRENCE-ID means this is a
+        // modified instance of a series. Either way, the date is unreliable.
         let isRecurring = extractProperty("RRULE", from: vevent) != nil
+            || extractProperty("RECURRENCE-ID", from: vevent) != nil
 
         let organizer = extractOrganizer(from: vevent)
         let attendees = extractAttendees(from: vevent)

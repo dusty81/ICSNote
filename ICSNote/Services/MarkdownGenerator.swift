@@ -159,15 +159,22 @@ enum MarkdownGenerator {
         // the end markers (International numbers, SIP passcode, or last Zoom-related line)
 
         let startPatterns = [
-            "\\[https?://[^\\]]*zoom[^\\]]*\\.png\\]",   // Zoom logo image reference
+            "~={3,}~\\nYou have been invited to a Zoom meeting",  // ~===~ delimited block
+            "\\[https?://[^\\]]*zoom[^\\]]*\\.png\\]",            // Zoom logo image reference
             "Hi there,\\n.*? is inviting you to a scheduled Zoom meeting\\.",
+            "You have been invited to a Zoom meeting",
             "Join Zoom Meeting",
         ]
 
+        // Order matters: try the FURTHEST end markers first so lazy .*?
+        // consumes the full Zoom block when both H.323/SIP and phone
+        // dial-in sections are present.
         let endPatterns = [
+            "\\d+@zoomcrc\\.com\\nPasscode:\\n\\d+",      // SIP ending with passcode
+            "\\d+@zoomcrc\\.com",                         // SIP ending
+            "~={3,}~",                                    // ~===~ delimited block end
+            "Find your local number[^\\n]*",              // Alternative dial-in ending
             "International numbers[^\\n]*",               // Phone dial-in ending
-            "\\d+@zoomcrc\\.com\\nPasscode:\\n\\d+",      // SIP ending
-            "\\d+@zoomcrc\\.com",                         // SIP without trailing passcode
         ]
 
         var result = text

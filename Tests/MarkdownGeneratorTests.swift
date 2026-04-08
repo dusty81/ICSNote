@@ -122,6 +122,35 @@ final class MarkdownGeneratorTests: XCTestCase {
         XCTAssertFalse(markdown.contains("*Zoom meeting information removed.*"))
     }
 
+    func testStripsZoomWithH323AfterInternationalNumbers() {
+        // When H.323/SIP block comes AFTER "International numbers", both must be stripped
+        let event = CalendarEvent(
+            title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
+            description: "[https://us06st2.zoom.us/static/6.3.55369/image/new/ZoomLogo_110_25.png]<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fzoom.com>\nHi there,\nSarah is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting<safelink>\nMeeting URL:\nhttps://example.zoom.us/j/123\nMeeting ID:\n880 0908 6727\nDial:\n+1 651 372 8299 US\nMeeting ID:\n880 0908 6727\nInternational numbers<safelink>\nJoin from an H.323/SIP room system\nH.323:\n144.195.19.161 (US West)\n206.247.11.121 (US East)\nMeeting ID:\n880 0908 6727\nSIP:\n88009086727@zoomcrc.com",
+            location: "", categories: [], status: ""
+        )
+        let markdown = MarkdownGenerator.generate(event: event, stripZoom: true)
+        XCTAssertTrue(markdown.contains("*Zoom meeting information removed.*"))
+        XCTAssertFalse(markdown.contains("Join Zoom Meeting"), "Join Zoom Meeting should be stripped")
+        XCTAssertFalse(markdown.contains("H.323"), "H.323 block should be stripped")
+        XCTAssertFalse(markdown.contains("zoomcrc.com"), "SIP address should be stripped")
+        XCTAssertFalse(markdown.contains("International numbers"), "International numbers should be stripped")
+    }
+
+    func testStripsZoomDelimitedBlock() {
+        // Zoom block wrapped in ~===~ delimiters
+        let event = CalendarEvent(
+            title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
+            description: "~==========================~\nYou have been invited to a Zoom meeting:\n\nhttps://example.zoom.us/j/123\n\nMeeting ID: 123\nPassword: abc\n\nDial by your location:\n+1 470 250 9358 US\nFind your local number: https://zoom.us/zoomconference\n~==========================~",
+            location: "", categories: [], status: ""
+        )
+        let markdown = MarkdownGenerator.generate(event: event, stripZoom: true)
+        XCTAssertTrue(markdown.contains("*Zoom meeting information removed.*"))
+        XCTAssertFalse(markdown.contains("You have been invited to a Zoom meeting"))
+        XCTAssertFalse(markdown.contains("zoom.us/zoomconference"))
+        XCTAssertFalse(markdown.contains("~==========================~"))
+    }
+
     func testStripsTeamsInfo() {
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],

@@ -104,10 +104,37 @@ final class ICSParserTests: XCTestCase {
     func testRecurringEventMarkedAsRecurring() throws {
         let ics = try loadFixture("recurring-meeting")
         let event = try ICSParser.parse(ics)
-        // The first VEVENT has an RRULE; the selected VEVENT (Jan 20) has RECURRENCE-ID but no RRULE
-        // Only VEVENTs with RRULE are marked recurring
-        // selectNextOccurrence picks the Jan 20 VEVENT which has no RRULE
-        XCTAssertFalse(event.isRecurring)
+        // selectNextOccurrence picks the Jan 20 VEVENT which has RECURRENCE-ID
+        // (a modified instance of a recurring series) — should be marked recurring
+        XCTAssertTrue(event.isRecurring)
+    }
+
+    func testRecurrenceIDOnlyVEventIsRecurring() throws {
+        // When a series has multiple VEVENTs and the selected one has
+        // RECURRENCE-ID but no RRULE, it should still be marked recurring
+        let ics = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        BEGIN:VEVENT
+        SUMMARY:1:1 - Alec / Dusty
+        DTSTART:20260114T153000Z
+        DTEND:20260114T160000Z
+        RRULE:FREQ=WEEKLY;UNTIL=20270101T153000Z;INTERVAL=2;BYDAY=WE;WKST=SU
+        STATUS:CONFIRMED
+        END:VEVENT
+        BEGIN:VEVENT
+        RECURRENCE-ID:20260325T143000Z
+        SUMMARY:1:1 - Alec / Dusty
+        DTSTART:20260324T143000Z
+        DTEND:20260324T150000Z
+        STATUS:CONFIRMED
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let event = try ICSParser.parse(ics)
+        // Both VEVENTs are in the past; selectNextOccurrence picks Mar 24
+        // That VEVENT has RECURRENCE-ID → isRecurring should be true
+        XCTAssertTrue(event.isRecurring)
     }
 
     func testSingleVEventWithRRuleIsRecurring() throws {
@@ -234,6 +261,29 @@ final class ICSParserTests: XCTestCase {
         XCTAssertEqual(AttendeeStatus.declined.emoji, "❌")
         XCTAssertEqual(AttendeeStatus.tentative.emoji, "❓")
         XCTAssertEqual(AttendeeStatus.needsAction.emoji, "➖")
+    }
+
+    // MARK: - Real-World Recurring Fixtures
+
+    func testAlecDustyRecurringIsMarkedRecurring() throws {
+        let ics = try loadFixture("1-1-alec-dusty")
+        let event = try ICSParser.parse(ics)
+        XCTAssertTrue(event.isRecurring, "Modified occurrence with RECURRENCE-ID should be marked recurring")
+        XCTAssertEqual(event.title, "1:1 - Alec / Dusty")
+    }
+
+    func testNealDustyRecurringIsMarkedRecurring() throws {
+        let ics = try loadFixture("1-1-neal-dusty")
+        let event = try ICSParser.parse(ics)
+        XCTAssertTrue(event.isRecurring, "Modified occurrence with RECURRENCE-ID should be marked recurring")
+        XCTAssertEqual(event.title, "1:1 - Neal / Dusty")
+    }
+
+    func testBiWeeklyHuddleRecurringIsMarkedRecurring() throws {
+        let ics = try loadFixture("biweekly-infosec-huddle")
+        let event = try ICSParser.parse(ics)
+        XCTAssertTrue(event.isRecurring, "Modified occurrence with RECURRENCE-ID should be marked recurring")
+        XCTAssertEqual(event.title, "Biweekly Team Huddle")
     }
 
     // MARK: - Helpers
