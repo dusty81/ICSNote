@@ -118,4 +118,4 @@ DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme ICSN
 
 ## License
 
-All rights reserved.
+[PolyForm Noncommercial License 1.0.0](LICENSE)

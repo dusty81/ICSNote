@@ -277,11 +277,14 @@ final class AppViewModel {
         // Build obsidian://open URL from vault path and file
         // Format: obsidian://open?vault=VaultName&file=Subfolder/Filename
         let vaultName = (settings.vaultPath as NSString).lastPathComponent
+        let baseName = conversion.filename.hasSuffix(".md")
+            ? String(conversion.filename.dropLast(3))
+            : conversion.filename
         let fileWithinVault: String
         if settings.subfolder.isEmpty {
-            fileWithinVault = conversion.filename.replacingOccurrences(of: ".md", with: "")
+            fileWithinVault = baseName
         } else {
-            fileWithinVault = "\(settings.subfolder)/\(conversion.filename.replacingOccurrences(of: ".md", with: ""))"
+            fileWithinVault = "\(settings.subfolder)/\(baseName)"
         }
 
         var components = URLComponents()

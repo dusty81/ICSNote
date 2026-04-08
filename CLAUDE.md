@@ -44,12 +44,12 @@ The drop handler in `performDragOperation` uses three strategies in priority ord
 ### ICS Parsing Specifics
 
 - **Line unfolding** must happen first (RFC 5545: continuation lines start with space/tab).
-- **Recurring event handling**: when a VEVENT has an RRULE, the parser sets `isRecurring: true` on the `CalendarEvent`. The ViewModel then shows a date picker dialog (defaulting to today) so the user can confirm or change the occurrence date. This is critical because Outlook puts the series definition (first occurrence date) on the pasteboard, not the specific occurrence the user dragged. The `CalendarEvent.withDate(_:)` method shifts the event to the chosen date while preserving the original time-of-day and duration.
+- **Recurring event handling**: when a VEVENT has an RRULE or RECURRENCE-ID, the parser sets `isRecurring: true` on the `CalendarEvent`. The ViewModel then shows a date picker dialog (defaulting to today) so the user can confirm or change the occurrence date. This is critical because Outlook puts the series definition (first occurrence date) on the pasteboard, not the specific occurrence the user dragged. Outlook often includes both the series-definition VEVENT (with RRULE) and modified-occurrence VEVENTs (with RECURRENCE-ID but no RRULE); `selectNextOccurrence` picks the most recent, so RECURRENCE-ID must also trigger the recurring flow. The `CalendarEvent.withDate(_:)` method shifts the event to the chosen date while preserving the original time-of-day and duration.
 - **Text replacements** are applied to titles before filename sanitization, so "1:1" becomes "One on One" before the colon would be stripped.
 
 ### Zoom/Teams Stripping
 
-Outlook wraps URLs in `nam11.safelinks.protection.outlook.com` SafeLinks. Zoom blocks can end with either "International numbers" (phone dial-in) or `@zoomcrc.com` (H.323/SIP). The stripper tries multiple start-pattern × end-pattern combinations and returns on first match.
+Outlook wraps URLs in `nam11.safelinks.protection.outlook.com` SafeLinks. Zoom blocks can end with either "International numbers" (phone dial-in) or `@zoomcrc.com` (H.323/SIP). The stripper tries multiple start-pattern × end-pattern combinations and returns on first match. End patterns are ordered so the **furthest** endpoint (`@zoomcrc.com`) is tried before closer ones (`International numbers`), ensuring the full block is consumed when H.323/SIP follows phone dial-in. A third Zoom format — `~===~` delimited blocks with "You have been invited to a Zoom meeting" — is also handled.
 
 ## Conventions
 
