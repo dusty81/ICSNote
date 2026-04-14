@@ -146,6 +146,215 @@ enum MarkdownGenerator {
         return lines.joined(separator: "\n")
     }
 
+    // MARK: - Email Generation
+
+    static func generate(
+        email: EmailMessage,
+        textReplacements: [(find: String, replace: String)] = [],
+        notesTemplate: String = ""
+    ) -> String {
+        var sections: [String] = []
+        sections.append(generateEmailFrontmatter(email: email))
+        sections.append(generateEmailMetadataTable(email: email))
+        let realAttachments = email.attachments.filter { !$0.isInline }
+        if !realAttachments.isEmpty {
+            sections.append(generateAttachmentsSection(attachments: realAttachments))
+        }
+        sections.append(generateBodySection(body: email.body))
+        sections.append(generateNotesSection(template: notesTemplate))
+        return sections.joined(separator: "\n")
+    }
+
+    static func generateFilename(
+        email: EmailMessage,
+        textReplacements: [(find: String, replace: String)] = []
+    ) -> String {
+        let dateString = formatDateOnly(email.date)
+        var title = email.cleanSubject
+        for replacement in textReplacements {
+            title = title.replacingOccurrences(of: replacement.find, with: replacement.replace)
+        }
+        title = sanitizeFilename(title)
+        return "\(dateString) \(title).md"
+    }
+
+    /// Update an existing email note with a new message, moving the old body
+    /// into a collapsed "Previous Messages" section.
+    static func updateNoteWithNewMessage(existingContent: String, newEmail: EmailMessage) -> String {
+        var result = existingContent
+
+        // 1. Update frontmatter date and from to newest message
+        result = updateFrontmatterField(in: result, field: "date", value: formatDateOnly(newEmail.date))
+        result = updateFrontmatterField(in: result, field: "time", value: "\"\(formatTime(newEmail.date))\"")
+        result = updateFrontmatterField(in: result, field: "from", value: "\"\(escapeFrontmatter(newEmail.from.name))\"")
+
+        // 2. Extract the current ## Body content
+        let oldBody = extractSection(named: "Body", from: result)
+        let oldFrom = extractFrontmatterField(named: "from", from: existingContent)
+            .replacingOccurrences(of: "\"", with: "")
+        let oldDate = extractFrontmatterField(named: "date", from: existingContent)
+        let oldTime = extractFrontmatterField(named: "time", from: existingContent)
+            .replacingOccurrences(of: "\"", with: "")
+
+        // 3. Build the callout block for the old message
+        let senderLabel = oldFrom.isEmpty ? "Previous sender" : oldFrom
+        let dateLabel = oldDate.isEmpty ? "" : " — \(oldDate)"
+        let timeLabel = oldTime.isEmpty ? "" : " \(oldTime)"
+        let calloutHeader = "> [!quote]- \(senderLabel)\(dateLabel)\(timeLabel)"
+        let calloutBody = oldBody.components(separatedBy: "\n").map { "> \($0)" }.joined(separator: "\n")
+        let newCallout = "\(calloutHeader)\n\(calloutBody)"
+
+        // 4. Extract existing Previous Messages section (if any)
+        let existingPrevious = extractSection(named: "Previous Messages", from: result)
+
+        // 5. Replace ## Body with new email body
+        result = replaceSection(named: "Body", in: result, with: newEmail.body.trimmingCharacters(in: .whitespacesAndNewlines))
+
+        // 6. Insert/update ## Previous Messages before ## Notes
+        let previousContent = existingPrevious.isEmpty
+            ? newCallout
+            : "\(newCallout)\n\n\(existingPrevious)"
+
+        if result.contains("## Previous Messages") {
+            result = replaceSection(named: "Previous Messages", in: result, with: previousContent)
+        } else {
+            // Insert before ## Notes
+            result = result.replacingOccurrences(of: "## Notes", with: "## Previous Messages\n\n\(previousContent)\n\n## Notes")
+        }
+
+        return result
+    }
+
+    // MARK: - Email Frontmatter
+
+    private static func generateEmailFrontmatter(email: EmailMessage) -> String {
+        var lines: [String] = ["---"]
+        lines.append("title: \"\(escapeFrontmatter(email.cleanSubject))\"")
+        lines.append("date: \(formatDateOnly(email.date))")
+        lines.append("time: \"\(formatTime(email.date))\"")
+        lines.append("from: \"\(escapeFrontmatter(email.from.name))\"")
+        if !email.to.isEmpty {
+            lines.append("to:")
+            for contact in email.to {
+                let display = contact.name.isEmpty ? contact.email : contact.name
+                lines.append("  - \"\(escapeFrontmatter(display))\"")
+            }
+        }
+        if !email.cc.isEmpty {
+            lines.append("cc:")
+            for contact in email.cc {
+                let display = contact.name.isEmpty ? contact.email : contact.name
+                lines.append("  - \"\(escapeFrontmatter(display))\"")
+            }
+        }
+        lines.append("subject: \"\(escapeFrontmatter(email.subject))\"")
+        let realAttachments = email.attachments.filter { !$0.isInline }
+        if !realAttachments.isEmpty {
+            lines.append("attachments:")
+            for attachment in realAttachments {
+                lines.append("  - \"\(escapeFrontmatter(attachment.filename))\"")
+            }
+        }
+        lines.append("type: email")
+        lines.append("---")
+        lines.append("")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func generateEmailMetadataTable(email: EmailMessage) -> String {
+        var lines: [String] = []
+        lines.append("## Email Details")
+        lines.append("")
+        lines.append("| Field | Value |")
+        lines.append("|-------|-------|")
+        let fromDisplay = email.from.email.isEmpty
+            ? email.from.name
+            : "\(email.from.name) (\(email.from.email))"
+        lines.append("| **From** | \(fromDisplay) |")
+        if !email.to.isEmpty {
+            let toDisplay = email.to.map { $0.name.isEmpty ? $0.email : $0.name }.joined(separator: ", ")
+            lines.append("| **To** | \(toDisplay) |")
+        }
+        if !email.cc.isEmpty {
+            let ccDisplay = email.cc.map { $0.name.isEmpty ? $0.email : $0.name }.joined(separator: ", ")
+            lines.append("| **CC** | \(ccDisplay) |")
+        }
+        lines.append("| **Date** | \(formatFullDate(email.date)) |")
+        lines.append("| **Time** | \(formatTime(email.date)) |")
+        lines.append("| **Subject** | \(email.subject) |")
+        lines.append("")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func generateAttachmentsSection(attachments: [EmailAttachment]) -> String {
+        var lines: [String] = ["## Attachments", ""]
+        for attachment in attachments {
+            lines.append("- [[\(attachment.filename)]]")
+        }
+        lines.append("")
+        return lines.joined(separator: "\n")
+    }
+
+    private static func generateBodySection(body: String) -> String {
+        let trimmed = body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return "" }
+        return "## Body\n\n\(trimmed)\n"
+    }
+
+    // MARK: - Section Manipulation (for thread merging)
+
+    /// Extract the content between ## SectionName and the next ## heading (or end of file).
+    private static func extractSection(named name: String, from content: String) -> String {
+        let header = "## \(name)"
+        guard let headerRange = content.range(of: header) else { return "" }
+        let afterHeader = content[headerRange.upperBound...]
+        // Find the next ## heading
+        if let nextHeading = afterHeader.range(of: "\n## ", range: afterHeader.startIndex..<afterHeader.endIndex) {
+            return String(afterHeader[afterHeader.startIndex..<nextHeading.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        return String(afterHeader).trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Replace the content of a section (between ## heading and next ## heading).
+    private static func replaceSection(named name: String, in content: String, with newContent: String) -> String {
+        let header = "## \(name)"
+        guard let headerRange = content.range(of: header) else { return content }
+        let afterHeader = content[headerRange.upperBound...]
+        if let nextHeading = afterHeader.range(of: "\n## ", range: afterHeader.startIndex..<afterHeader.endIndex) {
+            let before = String(content[content.startIndex..<headerRange.upperBound])
+            let after = String(content[nextHeading.lowerBound...])
+            return "\(before)\n\n\(newContent)\n\(after)"
+        }
+        // Section is at end of file
+        let before = String(content[content.startIndex..<headerRange.upperBound])
+        return "\(before)\n\n\(newContent)\n"
+    }
+
+    /// Extract a frontmatter field value.
+    private static func extractFrontmatterField(named field: String, from content: String) -> String {
+        for line in content.components(separatedBy: "\n") {
+            if line.hasPrefix("\(field):") {
+                return String(line.dropFirst(field.count + 1)).trimmingCharacters(in: .whitespaces)
+            }
+        }
+        return ""
+    }
+
+    /// Update a frontmatter field value in-place.
+    private static func updateFrontmatterField(in content: String, field: String, value: String) -> String {
+        let lines = content.components(separatedBy: "\n")
+        var result: [String] = []
+        for line in lines {
+            if line.hasPrefix("\(field):") {
+                result.append("\(field): \(value)")
+            } else {
+                result.append(line)
+            }
+        }
+        return result.joined(separator: "\n")
+    }
+
     // MARK: - Stripping Helpers
 
     static func stripZoomInfo(from text: String) -> String {
@@ -240,6 +449,16 @@ enum MarkdownGenerator {
         f.dateFormat = "EEEE, MMMM d, yyyy"
         f.timeZone = TimeZone.current
         return f.string(from: date)
+    }
+
+    private static func formatTime(_ date: Date) -> String {
+        let f = DateFormatter()
+        f.dateFormat = "h:mm a"
+        f.timeZone = TimeZone.current
+        let tz = DateFormatter()
+        tz.dateFormat = "zzz"
+        tz.timeZone = TimeZone.current
+        return "\(f.string(from: date)) (\(tz.string(from: date)))"
     }
 
     private static func formatTimeRange(start: Date, end: Date) -> String {

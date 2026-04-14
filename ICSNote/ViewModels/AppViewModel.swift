@@ -117,9 +117,11 @@ final class AppViewModel {
 
         if icsText.contains("BEGIN:VCALENDAR") || icsText.contains("BEGIN:VEVENT") {
             processICSText(icsText, sourceName: "Dropped Calendar Event")
+        } else if looksLikeEML(icsText) {
+            processEMLText(icsText, sourceName: "Dropped Email")
         } else {
             let preview = String(icsText.prefix(100))
-            showError(message: "The dropped item does not contain calendar data.\n\nType: \(typeId)\nPreview: \(preview)")
+            showError(message: "The dropped item does not contain calendar or email data.\n\nType: \(typeId)\nPreview: \(preview)")
         }
     }
 
@@ -155,8 +157,9 @@ final class AppViewModel {
     }
 
     func processFile(at url: URL) {
-        guard url.pathExtension.lowercased() == "ics" else {
-            showError(message: "Only .ics files are supported.")
+        let ext = url.pathExtension.lowercased()
+        guard ext == "ics" || ext == "eml" else {
+            showError(message: "Only .ics and .eml files are supported.")
             return
         }
         guard settings.isVaultConfigured else {
@@ -167,17 +170,169 @@ final class AppViewModel {
             let gaining = url.startAccessingSecurityScopedResource()
             defer { if gaining { url.stopAccessingSecurityScopedResource() } }
 
-            let icsText = try String(contentsOf: url, encoding: .utf8)
-            guard !icsText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                showError(message: "The file is empty. It may not have been exported correctly from Outlook.")
+            let text = try String(contentsOf: url, encoding: .utf8)
+            guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                showError(message: "The file is empty.")
                 return
             }
-            let event = try ICSParser.parse(icsText)
-            handleParsedEvent(event)
+
+            if ext == "eml" {
+                processEMLText(text, sourceName: url.lastPathComponent)
+            } else {
+                let event = try ICSParser.parse(text)
+                handleParsedEvent(event)
+            }
         } catch {
-            Self.logger.error("Failed to process ICS: \(error.localizedDescription, privacy: .public)")
+            Self.logger.error("Failed to process file: \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
         }
+    }
+
+    // MARK: - EML Processing
+
+    private func looksLikeEML(_ text: String) -> Bool {
+        let start = String(text.prefix(2000))
+        return start.contains("From:") && start.contains("Subject:")
+    }
+
+    func processEMLText(_ text: String, sourceName: String) {
+        guard settings.isVaultConfigured else {
+            showError(message: "Please configure your Obsidian vault in Settings.")
+            return
+        }
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showError(message: "The email data is empty.")
+            return
+        }
+        do {
+            let email = try EMLParser.parse(text)
+            writeEmailAndRecord(email: email)
+        } catch {
+            Self.logger.error("Failed to process EML from \(sourceName, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            showError(message: error.localizedDescription)
+        }
+    }
+
+    private func writeEmailAndRecord(email: EmailMessage) {
+        do {
+            // Save attachments first
+            if settings.saveAttachments {
+                saveAttachments(from: email)
+            }
+
+            let filename = MarkdownGenerator.generateFilename(
+                email: email,
+                textReplacements: settings.replacementTuples
+            )
+
+            // Thread merge: check for existing note with same subject
+            if settings.mergeEmailThreads, let existingURL = findExistingEmailNote(subject: email.cleanSubject) {
+                let existingContent = try String(contentsOf: existingURL, encoding: .utf8)
+                let updated = MarkdownGenerator.updateNoteWithNewMessage(existingContent: existingContent, newEmail: email)
+                try updated.write(to: existingURL, atomically: true, encoding: .utf8)
+
+                let conversion = RecentConversion(
+                    filename: existingURL.lastPathComponent,
+                    attendeeCount: 0,
+                    strippedInfo: "thread updated",
+                    outputURL: existingURL,
+                    timestamp: Date()
+                )
+                recentConversions.insert(conversion, at: 0)
+                Self.logger.info("Updated thread: \(existingURL.lastPathComponent, privacy: .public)")
+            } else {
+                let markdown = MarkdownGenerator.generate(
+                    email: email,
+                    textReplacements: settings.replacementTuples,
+                    notesTemplate: settings.emailNotesTemplate
+                )
+                let outputURL = try writeEmailMarkdown(markdown, filename: filename)
+
+                let attachmentCount = email.attachments.filter { !$0.isInline }.count
+                let info = attachmentCount > 0 ? "\(attachmentCount) attachment\(attachmentCount == 1 ? "" : "s")" : nil
+
+                let conversion = RecentConversion(
+                    filename: filename,
+                    attendeeCount: 0,
+                    strippedInfo: info,
+                    outputURL: outputURL,
+                    timestamp: Date()
+                )
+                recentConversions.insert(conversion, at: 0)
+                Self.logger.info("Converted email: \(filename, privacy: .public)")
+            }
+
+            if settings.playSuccessSound {
+                NSSound(named: .init("Glass"))?.play()
+            }
+        } catch {
+            Self.logger.error("Failed to write email note: \(error.localizedDescription, privacy: .public)")
+            showError(message: error.localizedDescription)
+        }
+    }
+
+    /// Search the email output folder for an existing note whose filename contains the cleaned subject.
+    private func findExistingEmailNote(subject: String) -> URL? {
+        guard let dir = settings.emailOutputDirectoryURL else { return nil }
+        guard FileManager.default.fileExists(atPath: dir.path) else { return nil }
+
+        let sanitized = MarkdownGenerator.sanitizeFilename(subject)
+        guard !sanitized.isEmpty else { return nil }
+
+        guard let contents = try? FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil) else {
+            return nil
+        }
+
+        return contents.first { url in
+            url.pathExtension == "md" && url.lastPathComponent.contains(sanitized)
+        }
+    }
+
+    private func saveAttachments(from email: EmailMessage) {
+        guard let attachDir = settings.attachmentDirectoryURL else { return }
+        let fm = FileManager.default
+
+        for attachment in email.attachments where !attachment.isInline {
+            do {
+                if !fm.fileExists(atPath: attachDir.path) {
+                    try fm.createDirectory(at: attachDir, withIntermediateDirectories: true)
+                }
+                var fileURL = attachDir.appendingPathComponent(attachment.filename)
+                if fm.fileExists(atPath: fileURL.path) {
+                    let name = (attachment.filename as NSString).deletingPathExtension
+                    let ext = (attachment.filename as NSString).pathExtension
+                    var counter = 2
+                    while fm.fileExists(atPath: fileURL.path) {
+                        fileURL = attachDir.appendingPathComponent("\(name)-\(counter).\(ext)")
+                        counter += 1
+                    }
+                }
+                try attachment.data.write(to: fileURL)
+                Self.logger.info("Saved attachment: \(fileURL.lastPathComponent, privacy: .public)")
+            } catch {
+                Self.logger.error("Failed to save attachment \(attachment.filename, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+
+    private func writeEmailMarkdown(_ content: String, filename: String) throws -> URL {
+        guard let outputDir = settings.emailOutputDirectoryURL else {
+            throw NSError(domain: "ICSNote", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault path not configured"])
+        }
+        if !FileManager.default.fileExists(atPath: outputDir.path) {
+            try FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+        }
+        var fileURL = outputDir.appendingPathComponent(filename)
+        if FileManager.default.fileExists(atPath: fileURL.path) {
+            let name = (filename as NSString).deletingPathExtension
+            var counter = 2
+            while FileManager.default.fileExists(atPath: fileURL.path) {
+                fileURL = outputDir.appendingPathComponent("\(name)-\(counter).md")
+                counter += 1
+            }
+        }
+        try content.write(to: fileURL, atomically: true, encoding: .utf8)
+        return fileURL
     }
 
     // MARK: - Recurring Event Handling

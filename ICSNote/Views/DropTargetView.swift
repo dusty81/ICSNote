@@ -8,17 +8,20 @@ import os
 /// reliably resolve file promises on repeated drops.
 struct DropTargetView: NSViewRepresentable {
     let onICSContent: (String, String) -> Void
+    let onEMLContent: (String, String) -> Void
     let onDropTargeted: (Bool) -> Void
 
     func makeNSView(context: Context) -> ICSDropNSView {
         let view = ICSDropNSView()
         view.onICSContent = onICSContent
+        view.onEMLContent = onEMLContent
         view.onDropTargeted = onDropTargeted
         return view
     }
 
     func updateNSView(_ nsView: ICSDropNSView, context: Context) {
         nsView.onICSContent = onICSContent
+        nsView.onEMLContent = onEMLContent
         nsView.onDropTargeted = onDropTargeted
     }
 }
@@ -27,6 +30,7 @@ class ICSDropNSView: NSView {
     private static let logger = Logger(subsystem: "com.icsnote.app", category: "DropTarget")
 
     var onICSContent: ((String, String) -> Void)?
+    var onEMLContent: ((String, String) -> Void)?
     var onDropTargeted: ((Bool) -> Void)?
 
     /// Dedicated background queue for file promise resolution.
@@ -47,6 +51,8 @@ class ICSDropNSView: NSView {
             NSFilePromiseReceiver.readableDraggedTypes.map { NSPasteboard.PasteboardType($0) } + [
                 .fileURL,
                 NSPasteboard.PasteboardType("com.apple.ical.ics"),
+                NSPasteboard.PasteboardType("com.apple.mail.email"),
+                NSPasteboard.PasteboardType("public.email-message"),
             ]
         )
     }
@@ -76,47 +82,56 @@ class ICSDropNSView: NSView {
         onDropTargeted?(false)
         let pasteboard = sender.draggingPasteboard
 
-        // Log ALL pasteboard types and their data sizes for debugging
+        // Log pasteboard types for debugging (but don't read data yet —
+        // reading all types eagerly can interfere with Outlook's file promises)
         if let types = pasteboard.types {
-            for type in types {
-                let data = pasteboard.data(forType: type)
-                let size = data?.count ?? -1
-                Self.logger.info("Pasteboard type: \(type.rawValue, privacy: .public) = \(size) bytes")
-
-                // If any type contains ICS data, use it directly
-                if let data, data.count > 20,
-                   let text = String(data: data, encoding: .utf8),
-                   text.contains("BEGIN:VCALENDAR") {
-                    Self.logger.info("Found ICS data in pasteboard type: \(type.rawValue, privacy: .public)")
-                    DispatchQueue.main.async { [weak self] in
-                        self?.onICSContent?(text, "Calendar Event")
-                    }
-                    return true
-                }
-            }
+            Self.logger.info("Pasteboard types: \(types.map(\.rawValue).joined(separator: ", "), privacy: .public)")
         }
 
-        // Strategy 1: File URLs (Finder drops of .ics files)
-        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
-            .urlReadingFileURLsOnly: true,
-        ]) as? [URL] {
-            let icsURLs = urls.filter { $0.pathExtension.lowercased() == "ics" }
-            if !icsURLs.isEmpty {
-                Self.logger.info("Handling \(icsURLs.count) file URL(s)")
-                for url in icsURLs {
-                    readAndDeliverICS(at: url)
+        // Strategy 1: Quick check of known ICS pasteboard types only.
+        // Outlook usually puts inline ICS data on specific calendar types.
+        // We intentionally do NOT scan all types — that's slow and can
+        // interfere with Outlook's file promise setup.
+        let icsTypes: [NSPasteboard.PasteboardType] = [
+            NSPasteboard.PasteboardType("com.apple.ical.ics"),
+            NSPasteboard.PasteboardType("public.calendar-event"),
+            NSPasteboard.PasteboardType("com.microsoft.outlook16.icalendar"),
+        ]
+        for type in icsTypes {
+            if let data = pasteboard.data(forType: type),
+               data.count > 20,
+               let text = String(data: data, encoding: .utf8),
+               text.contains("BEGIN:VCALENDAR") {
+                Self.logger.info("Found ICS data in pasteboard type: \(type.rawValue, privacy: .public)")
+                DispatchQueue.main.async { [weak self] in
+                    self?.onICSContent?(text, "Calendar Event")
                 }
                 return true
             }
         }
 
-        // Strategy 2: File promises (Outlook) — resolve to temp dir on background queue
+        // Strategy 2: File URLs (.ics or .eml from Finder)
+        if let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+            .urlReadingFileURLsOnly: true,
+        ]) as? [URL] {
+            let supportedURLs = urls.filter { ["ics", "eml"].contains($0.pathExtension.lowercased()) }
+            if !supportedURLs.isEmpty {
+                Self.logger.info("Handling \(supportedURLs.count) file URL(s)")
+                for url in supportedURLs {
+                    readAndDeliverFile(at: url)
+                }
+                return true
+            }
+        }
+
+        // Strategy 3: File promises (Outlook) with retry logic.
+        // Outlook uses NSFilePromiseReceiver for both calendar and email drags.
+        // The resolved file may be .ics or .eml — readAndDeliverFile routes both.
         if let promises = pasteboard.readObjects(forClasses: [NSFilePromiseReceiver.self], options: nil) as? [NSFilePromiseReceiver], !promises.isEmpty {
             Self.logger.info("Handling \(promises.count) file promise(s)")
 
             let destination = makePromiseDestination()
             for promise in promises {
-                // Log the promised file types
                 Self.logger.info("Promise file types: \(promise.fileTypes.joined(separator: ", "), privacy: .public)")
 
                 promise.receivePromisedFiles(atDestination: destination, options: [:], operationQueue: promiseQueue) { [weak self] url, error in
@@ -126,23 +141,55 @@ class ICSDropNSView: NSView {
                     }
                     Self.logger.info("Promise resolved: \(url.lastPathComponent, privacy: .public)")
 
-                    // Wait a moment for the file to be fully written, then read
-                    Thread.sleep(forTimeInterval: 0.5)
-                    self?.readAndDeliverICS(at: url, cleanupDirectory: destination)
+                    // Outlook writes the file asynchronously. Poll until the
+                    // file exists and is non-empty, with increasing back-off.
+                    let fm = FileManager.default
+                    for attempt in 1...6 {
+                        Thread.sleep(forTimeInterval: 0.3 * Double(attempt))
+                        if fm.fileExists(atPath: url.path),
+                           let attrs = try? fm.attributesOfItem(atPath: url.path),
+                           let size = attrs[.size] as? UInt64, size > 10 {
+                            Self.logger.info("File ready after attempt \(attempt): \(url.lastPathComponent, privacy: .public) (\(size) bytes)")
+                            self?.readAndDeliverFile(at: url, cleanupDirectory: destination)
+                            return
+                        }
+                        Self.logger.info("Attempt \(attempt): file not ready at \(url.lastPathComponent, privacy: .public)")
+                    }
+
+                    // Final attempt even if file seems small/missing
+                    Self.logger.warning("File may not be fully written, attempting read anyway: \(url.lastPathComponent, privacy: .public)")
+                    self?.readAndDeliverFile(at: url, cleanupDirectory: destination)
                 }
             }
             return true
         }
 
-        Self.logger.error("No recognized calendar data in drop")
+        // Strategy 4: Last resort — scan ALL pasteboard types for inline content.
+        // This catches edge cases where Outlook provides data in unexpected types.
+        if let types = pasteboard.types {
+            for type in types {
+                guard let data = pasteboard.data(forType: type), data.count > 50 else { continue }
+                guard let text = String(data: data, encoding: .utf8) else { continue }
+
+                if text.contains("BEGIN:VCALENDAR") {
+                    Self.logger.info("Fallback: found ICS in \(type.rawValue, privacy: .public)")
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onICSContent?(text, "Calendar Event")
+                    }
+                    return true
+                }
+            }
+        }
+
+        Self.logger.error("No recognized data in drop")
         return false
     }
 
-    /// Read ICS content from a file using NSFileCoordinator.
+    /// Read file content using NSFileCoordinator and route to the appropriate callback.
     /// File promises from Outlook involve file coordination — we must coordinate
     /// our read to wait for Outlook's write to complete.
     /// May be called from a background queue.
-    private func readAndDeliverICS(at url: URL, cleanupDirectory: URL? = nil) {
+    private func readAndDeliverFile(at url: URL, cleanupDirectory: URL? = nil) {
         let name = url.lastPathComponent
         Self.logger.info("Coordinating read of \(url.path, privacy: .public)")
 
@@ -151,21 +198,25 @@ class ICSDropNSView: NSView {
 
         coordinator.coordinate(readingItemAt: url, options: [], error: &coordinatorError) { readURL in
             do {
-                let icsText = try String(contentsOf: readURL, encoding: .utf8)
-                Self.logger.info("Read \(icsText.count) chars from \(name, privacy: .public)")
+                let text = try String(contentsOf: readURL, encoding: .utf8)
+                Self.logger.info("Read \(text.count) chars from \(name, privacy: .public)")
 
-                // Clean up temp directory to avoid leaving appointment data on disk
+                // Clean up temp directory to avoid leaving data on disk
                 if let cleanupDirectory {
                     try? FileManager.default.removeItem(at: cleanupDirectory)
                     Self.logger.info("Cleaned up temp directory")
                 }
 
-                if icsText.contains("BEGIN:VCALENDAR") || icsText.contains("BEGIN:VEVENT") {
+                if text.contains("BEGIN:VCALENDAR") || text.contains("BEGIN:VEVENT") {
                     DispatchQueue.main.async { [weak self] in
-                        self?.onICSContent?(icsText, name)
+                        self?.onICSContent?(text, name)
+                    }
+                } else if url.pathExtension.lowercased() == "eml" || (text.contains("From:") && text.contains("Subject:")) {
+                    DispatchQueue.main.async { [weak self] in
+                        self?.onEMLContent?(text, name)
                     }
                 } else {
-                    Self.logger.error("File does not contain ICS data (\(icsText.count) chars): \(name, privacy: .public)")
+                    Self.logger.error("Unrecognized file format (\(text.count) chars): \(name, privacy: .public)")
                 }
             } catch {
                 Self.logger.error("Failed to read \(name, privacy: .public): \(error.localizedDescription, privacy: .public)")

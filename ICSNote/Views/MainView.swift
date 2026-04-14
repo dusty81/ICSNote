@@ -14,6 +14,9 @@ struct MainView: View {
                 onICSContent: { text, name in
                     viewModel.processICSText(text, sourceName: name)
                 },
+                onEMLContent: { text, name in
+                    viewModel.processEMLText(text, sourceName: name)
+                },
                 onDropTargeted: { targeted in
                     viewModel.isDropTargeted = targeted
                 }
@@ -47,7 +50,7 @@ struct MainView: View {
         .onOpenURL { url in viewModel.handleOpenURL(url) }
         .fileImporter(
             isPresented: $showFileImporter,
-            allowedContentTypes: [UTType(filenameExtension: "ics") ?? .data],
+            allowedContentTypes: [UTType(filenameExtension: "ics") ?? .data, UTType(filenameExtension: "eml") ?? .data],
             allowsMultipleSelection: false
         ) { result in
             if case .success(let urls) = result, let url = urls.first {
@@ -86,13 +89,13 @@ struct MainView: View {
                         Image(systemName: "calendar.badge.plus")
                             .font(.system(size: 36))
                             .foregroundStyle(viewModel.isDropTargeted ? Color.accentColor : Color.secondary)
-                        Text(viewModel.isDropTargeted ? "Release to convert" : "Drop .ics file here")
+                        Text(viewModel.isDropTargeted ? "Release to convert" : "Drop .ics or .eml file here")
                             .font(.callout)
                             .foregroundStyle(viewModel.isDropTargeted ? Color.accentColor : Color.secondary)
                     }
                 }
                 .frame(width: 180, height: 140)
-            Text("or File → Open")
+            Text("or ⌘O to open a file")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
         .padding()
@@ -113,7 +116,7 @@ struct MainView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "calendar.badge.plus")
                         .font(.title3).foregroundStyle(viewModel.isDropTargeted ? Color.accentColor : Color.secondary)
-                    Text(viewModel.isDropTargeted ? "Release to convert" : "Drop another .ics file")
+                    Text(viewModel.isDropTargeted ? "Release to convert" : "Drop another file")
                         .font(.callout).foregroundStyle(viewModel.isDropTargeted ? Color.accentColor : Color.secondary)
                 }
             }

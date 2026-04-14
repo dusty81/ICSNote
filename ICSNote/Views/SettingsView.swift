@@ -9,8 +9,9 @@ struct SettingsView: View {
             strippingTab.tabItem { Label("Stripping", systemImage: "scissors") }
             replacementsTab.tabItem { Label("Replacements", systemImage: "arrow.left.arrow.right") }
             notesTab.tabItem { Label("Notes", systemImage: "note.text") }
+            emailTab.tabItem { Label("Email", systemImage: "envelope") }
         }
-        .frame(width: 500, height: 350)
+        .frame(width: 500, height: 380)
     }
 
     private var vaultTab: some View {
@@ -92,6 +93,42 @@ struct SettingsView: View {
             }
         }
         .padding()
+    }
+
+    private var emailTab: some View {
+        Form {
+            Section("Email Output") {
+                TextField("Email subfolder", text: $settings.emailSubfolder)
+                    .textFieldStyle(.roundedBorder)
+                Text("Email notes are saved here, separate from meeting notes.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Attachments") {
+                Toggle("Save email attachments to vault", isOn: $settings.saveAttachments)
+                if settings.saveAttachments {
+                    TextField("Attachment subfolder", text: $settings.attachmentSubfolder)
+                        .textFieldStyle(.roundedBorder)
+                    Text("Attachments are saved here and linked with [[wiki-links]]. Inline images (logos) are skipped.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            Section("Threads") {
+                Toggle("Merge email threads", isOn: $settings.mergeEmailThreads)
+                Text("When enabled, dropping a reply (RE:/FW:) appends to an existing note with the same subject instead of creating a new file.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            Section("Email Notes Template") {
+                TextEditor(text: $settings.emailNotesTemplate)
+                    .font(.system(.body, design: .monospaced))
+                    .scrollContentBackground(.hidden)
+                    .padding(4)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary))
+                    .frame(height: 60)
+                Text("Markdown appended under the ## Notes heading in email notes. Leave blank for no template.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped).padding()
     }
 
     private var notesTab: some View {
