@@ -151,6 +151,22 @@ final class MarkdownGeneratorTests: XCTestCase {
         XCTAssertFalse(markdown.contains("~==========================~"))
     }
 
+    func testStripsTeamsUnderscoreDelimitedBlock() {
+        // External-org Teams invite: underscore-delimited with SafeLinks, no "Learn more about Teams"
+        let event = CalendarEvent(
+            title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
+            description: "CAUTION: This email originated from outside.\n\n________________________________________________________________________________\nMicrosoft Teams meeting\nJoin: https://teams.microsoft.com/meet/123<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fteams.microsoft.com%2Fmeet%2F123>\nMeeting ID: 264 183 392 744 150\nPasscode: Mt9xB2N6\n________________________________\nNeed help?<safelink> | System reference<safelink>\nDial in by phone\n+1 920-393-6201 United States\nFind a local number<safelink>\nPhone conference ID: 559 727 062#\nFor organizers: Meeting options<safelink> | Reset dial-in PIN<safelink>\n________________________________________________________________________________",
+            location: "", categories: [], status: ""
+        )
+        let markdown = MarkdownGenerator.generate(event: event, stripTeams: true)
+        XCTAssertTrue(markdown.contains("CAUTION"), "External email warning should be preserved")
+        XCTAssertTrue(markdown.contains("*Microsoft Teams meeting information removed.*"))
+        XCTAssertFalse(markdown.contains("Join: https://teams.microsoft.com"), "Teams join link should be stripped")
+        XCTAssertFalse(markdown.contains("Meeting ID"), "Meeting ID should be stripped")
+        XCTAssertFalse(markdown.contains("Dial in by phone"), "Dial-in info should be stripped")
+        XCTAssertFalse(markdown.contains("Reset dial-in PIN"), "Reset PIN should be stripped")
+    }
+
     func testStripsTeamsInfo() {
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
