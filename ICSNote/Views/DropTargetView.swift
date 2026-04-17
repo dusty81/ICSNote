@@ -6,7 +6,12 @@ import os
 /// NSView-based drop target that properly handles NSFilePromiseReceiver
 /// (used by Outlook when dragging calendar items). SwiftUI's onDrop doesn't
 /// reliably resolve file promises on repeated drops.
-struct DropTargetView: NSViewRepresentable {
+///
+/// Each instance is associated with a specific vault via its callbacks —
+/// the callbacks close over the target vault ID in the caller's scope,
+/// so multiple drop targets can coexist (e.g., for the grid layout).
+struct VaultDropTargetView: NSViewRepresentable {
+    let vaultID: UUID
     let onICSContent: (String, String) -> Void
     let onEMLContent: (String, String) -> Void
     let onDropTargeted: (Bool) -> Void

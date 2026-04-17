@@ -167,6 +167,45 @@ final class MarkdownGeneratorTests: XCTestCase {
         XCTAssertFalse(markdown.contains("Reset dial-in PIN"), "Reset PIN should be stripped")
     }
 
+    func testStripsTeamsWithBlankLinesBetweenUnderscoresAndHeader() {
+        // External Org-style Teams invite: blank lines between underscore delimiter and
+        // "Microsoft Teams meeting" header. Previously the \n anchor made the regex fail.
+        let event = CalendarEvent(
+            title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
+            description: """
+            Hey Dusty, sending the invite.
+
+            ________________________________________________________________________________
+
+            Microsoft Teams meeting
+
+            Join on your computer or mobile app
+
+            Click here to join the meeting<safelink>
+
+            +1 647-749-1353,,135975739# Canada, Toronto
+
+            Phone Conference ID: 135 975 739#
+
+            Find a local number<safelink> | Reset PIN<safelink>
+
+            Learn More<safelink> | Meeting options<safelink>
+
+            ________________________________________________________________________________
+
+            Manage Subscription
+            """,
+            location: "", categories: [], status: ""
+        )
+        let markdown = MarkdownGenerator.generate(event: event, stripTeams: true)
+        XCTAssertTrue(markdown.contains("*Microsoft Teams meeting information removed.*"))
+        XCTAssertFalse(markdown.contains("Click here to join"), "Join link should be stripped")
+        XCTAssertFalse(markdown.contains("Phone Conference ID"), "Phone conf ID should be stripped")
+        XCTAssertFalse(markdown.contains("Reset PIN"), "Reset PIN should be stripped")
+        XCTAssertTrue(markdown.contains("Hey Dusty"), "Pre-Teams content preserved")
+        XCTAssertTrue(markdown.contains("Manage Subscription"), "Post-Teams content preserved")
+    }
+
     func testStripsTeamsInfo() {
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],

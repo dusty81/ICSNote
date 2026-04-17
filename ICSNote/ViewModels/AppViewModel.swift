@@ -11,6 +11,8 @@ struct RecentConversion: Identifiable {
     let strippedInfo: String?
     let outputURL: URL
     let timestamp: Date
+    let vaultID: UUID?
+    let vaultName: String?
 }
 
 @MainActor
@@ -26,13 +28,28 @@ final class AppViewModel {
     var showError = false
     var isDropTargeted = false
 
+    // Hook execution state — maintained for the Activity window.
+    // Capped at 100 entries; oldest are dropped.
+    var hookRuns: [HookRun] = []
+    private static let maxHookRuns = 100
+
+    var hasRunningHooks: Bool {
+        hookRuns.contains { !$0.isComplete }
+    }
+
+    var hasRecentHookFailures: Bool {
+        hookRuns.prefix(10).contains { $0.isFailure }
+    }
+
     // Recurring event date picker state
     var pendingEvent: CalendarEvent?
+    var pendingEventVaultID: UUID?
     var showDatePicker = false
     var selectedDate = Date()
 
     // PDF conversion prompt state (Ask mode)
     var pendingEmail: EmailMessage?
+    var pendingEmailVaultID: UUID?
     var pendingConvertibleFilenames: [String] = []
     var pendingEmailFilenames: [String] = []
     var showPDFConvertPrompt = false
@@ -144,34 +161,44 @@ final class AppViewModel {
 
     // MARK: - Processing
 
-    func processICSText(_ text: String, sourceName: String) {
-        guard settings.isVaultConfigured else {
-            showError(message: "Please configure your Obsidian vault in Settings.")
-            return
+    /// Resolve a target vault for an incoming drop. Defaults to the active vault
+    /// when no explicit vault ID is provided. Returns nil (and shows an error)
+    /// if no vault is configured.
+    private func resolveTargetVault(_ vaultID: UUID?) -> VaultConfig? {
+        let target: VaultConfig?
+        if let vaultID, let v = settings.vault(id: vaultID), v.enabled {
+            target = v
+        } else {
+            target = settings.activeVault
         }
+        if target == nil {
+            showError(message: "Please configure an Obsidian vault in Settings.")
+        }
+        return target
+    }
+
+    func processICSText(_ text: String, sourceName: String, vaultID: UUID? = nil) {
+        guard let vault = resolveTargetVault(vaultID) else { return }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             showError(message: "The calendar data is empty.")
             return
         }
         do {
             let event = try ICSParser.parse(text)
-            handleParsedEvent(event)
+            handleParsedEvent(event, vault: vault)
         } catch {
             Self.logger.error("Failed to process ICS from \(sourceName, privacy: .public): \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
         }
     }
 
-    func processFile(at url: URL) {
+    func processFile(at url: URL, vaultID: UUID? = nil) {
         let ext = url.pathExtension.lowercased()
         guard ext == "ics" || ext == "eml" else {
             showError(message: "Only .ics and .eml files are supported.")
             return
         }
-        guard settings.isVaultConfigured else {
-            showError(message: "Please configure your Obsidian vault in Settings.")
-            return
-        }
+        guard let vault = resolveTargetVault(vaultID) else { return }
         do {
             let gaining = url.startAccessingSecurityScopedResource()
             defer { if gaining { url.stopAccessingSecurityScopedResource() } }
@@ -183,10 +210,10 @@ final class AppViewModel {
             }
 
             if ext == "eml" {
-                processEMLText(text, sourceName: url.lastPathComponent)
+                processEMLText(text, sourceName: url.lastPathComponent, vaultID: vault.id)
             } else {
                 let event = try ICSParser.parse(text)
-                handleParsedEvent(event)
+                handleParsedEvent(event, vault: vault)
             }
         } catch {
             Self.logger.error("Failed to process file: \(error.localizedDescription, privacy: .public)")
@@ -201,29 +228,26 @@ final class AppViewModel {
         return start.contains("From:") && start.contains("Subject:")
     }
 
-    func processEMLText(_ text: String, sourceName: String) {
-        guard settings.isVaultConfigured else {
-            showError(message: "Please configure your Obsidian vault in Settings.")
-            return
-        }
+    func processEMLText(_ text: String, sourceName: String, vaultID: UUID? = nil) {
+        guard let vault = resolveTargetVault(vaultID) else { return }
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             showError(message: "The email data is empty.")
             return
         }
         do {
             let email = try EMLParser.parse(text)
-            writeEmailAndRecord(email: email)
+            writeEmailAndRecord(email: email, vault: vault)
         } catch {
             Self.logger.error("Failed to process EML from \(sourceName, privacy: .public): \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
         }
     }
 
-    private func writeEmailAndRecord(email: EmailMessage) {
+    private func writeEmailAndRecord(email: EmailMessage, vault: VaultConfig) {
         // Save attachments first, collecting the actual saved filenames
         var savedFilenames: [String] = []
         if settings.saveAttachments {
-            savedFilenames = saveAttachments(from: email)
+            savedFilenames = saveAttachments(from: email, vault: vault)
         } else {
             savedFilenames = email.attachments.filter { !$0.isInline }.map { $0.filename }
         }
@@ -235,16 +259,17 @@ final class AppViewModel {
 
         switch settings.pdfConversionMode {
         case .never:
-            finalizeEmail(email: email, attachmentFilenames: savedFilenames)
+            finalizeEmail(email: email, attachmentFilenames: savedFilenames, vault: vault)
         case .always:
-            let finalFilenames = convertAttachmentsToPDF(originalFilenames: savedFilenames, convertibleFilenames: convertibleFilenames)
-            finalizeEmail(email: email, attachmentFilenames: finalFilenames)
+            let finalFilenames = convertAttachmentsToPDF(originalFilenames: savedFilenames, convertibleFilenames: convertibleFilenames, vault: vault)
+            finalizeEmail(email: email, attachmentFilenames: finalFilenames, vault: vault)
         case .ask:
             if convertibleFilenames.isEmpty {
-                finalizeEmail(email: email, attachmentFilenames: savedFilenames)
+                finalizeEmail(email: email, attachmentFilenames: savedFilenames, vault: vault)
             } else {
                 // Store state and show prompt; user's choice will call confirmPDFConversion(convert:)
                 pendingEmail = email
+                pendingEmailVaultID = vault.id
                 pendingConvertibleFilenames = convertibleFilenames
                 pendingEmailFilenames = savedFilenames
                 showPDFConvertPrompt = true
@@ -254,28 +279,37 @@ final class AppViewModel {
 
     /// Called from the PDF conversion prompt dialog.
     func confirmPDFConversion(convert: Bool) {
-        guard let email = pendingEmail else { return }
+        guard let email = pendingEmail,
+              let vaultID = pendingEmailVaultID,
+              let vault = settings.vault(id: vaultID) else {
+            pendingEmail = nil
+            pendingEmailVaultID = nil
+            showPDFConvertPrompt = false
+            return
+        }
         let originalFilenames = pendingEmailFilenames
         let finalFilenames: [String]
         if convert {
             finalFilenames = convertAttachmentsToPDF(
                 originalFilenames: originalFilenames,
-                convertibleFilenames: pendingConvertibleFilenames
+                convertibleFilenames: pendingConvertibleFilenames,
+                vault: vault
             )
         } else {
             finalFilenames = originalFilenames
         }
         pendingEmail = nil
+        pendingEmailVaultID = nil
         pendingConvertibleFilenames = []
         pendingEmailFilenames = []
         showPDFConvertPrompt = false
-        finalizeEmail(email: email, attachmentFilenames: finalFilenames)
+        finalizeEmail(email: email, attachmentFilenames: finalFilenames, vault: vault)
     }
 
     /// Convert each convertible file in the attachment directory to a PDF.
     /// Returns the merged filename list (originals + new PDFs, preserving order).
-    private func convertAttachmentsToPDF(originalFilenames: [String], convertibleFilenames: [String]) -> [String] {
-        guard let attachDir = settings.attachmentDirectoryURL else { return originalFilenames }
+    private func convertAttachmentsToPDF(originalFilenames: [String], convertibleFilenames: [String], vault: VaultConfig) -> [String] {
+        guard let attachDir = vault.attachmentDirectoryURL else { return originalFilenames }
 
         var result: [String] = []
         for filename in originalFilenames {
@@ -302,15 +336,15 @@ final class AppViewModel {
     }
 
     /// Write the email note and record the conversion.
-    private func finalizeEmail(email: EmailMessage, attachmentFilenames: [String]) {
+    private func finalizeEmail(email: EmailMessage, attachmentFilenames: [String], vault: VaultConfig) {
         do {
             let filename = MarkdownGenerator.generateFilename(
                 email: email,
                 textReplacements: settings.replacementTuples
             )
 
-            // Thread merge: check for existing note with same subject
-            if settings.mergeEmailThreads, let existingURL = findExistingEmailNote(subject: email.cleanSubject) {
+            // Thread merge: check for existing note with same subject in the target vault
+            if settings.mergeEmailThreads, let existingURL = findExistingEmailNote(subject: email.cleanSubject, in: vault) {
                 let existingContent = try String(contentsOf: existingURL, encoding: .utf8)
                 let updated = MarkdownGenerator.updateNoteWithNewMessage(existingContent: existingContent, newEmail: email)
                 try updated.write(to: existingURL, atomically: true, encoding: .utf8)
@@ -320,7 +354,9 @@ final class AppViewModel {
                     attendeeCount: 0,
                     strippedInfo: "thread updated",
                     outputURL: existingURL,
-                    timestamp: Date()
+                    timestamp: Date(),
+                    vaultID: vault.id,
+                    vaultName: vault.name
                 )
                 recentConversions.insert(conversion, at: 0)
                 Self.logger.info("Updated thread: \(existingURL.lastPathComponent, privacy: .public)")
@@ -331,7 +367,7 @@ final class AppViewModel {
                     notesTemplate: settings.emailNotesTemplate,
                     attachmentFilenames: attachmentFilenames
                 )
-                let outputURL = try writeEmailMarkdown(markdown, filename: filename)
+                let outputURL = try writeEmailMarkdown(markdown, filename: filename, vault: vault)
 
                 let attachmentCount = attachmentFilenames.count
                 let info = attachmentCount > 0 ? "\(attachmentCount) attachment\(attachmentCount == 1 ? "" : "s")" : nil
@@ -341,7 +377,9 @@ final class AppViewModel {
                     attendeeCount: 0,
                     strippedInfo: info,
                     outputURL: outputURL,
-                    timestamp: Date()
+                    timestamp: Date(),
+                    vaultID: vault.id,
+                    vaultName: vault.name
                 )
                 recentConversions.insert(conversion, at: 0)
                 Self.logger.info("Converted email: \(filename, privacy: .public)")
@@ -350,15 +388,36 @@ final class AppViewModel {
             if settings.playSuccessSound {
                 NSSound(named: .init("Glass"))?.play()
             }
+
+            // Fire any matching post-save hooks (fire-and-forget).
+            // Both the thread-merge and new-note paths end up here — use the final
+            // file URL from whichever branch ran.
+            let savedURL: URL
+            if let last = recentConversions.first {
+                savedURL = last.outputURL
+            } else {
+                return
+            }
+            let attachmentFullPaths = attachmentFilenames.compactMap { name -> String? in
+                guard let attachDir = vault.attachmentDirectoryURL else { return nil }
+                return attachDir.appendingPathComponent(name).path
+            }
+            let hookContext = HookContext.email(
+                email: email,
+                vault: vault,
+                outputURL: savedURL,
+                attachmentPaths: attachmentFullPaths
+            )
+            fireHooks(context: hookContext)
         } catch {
             Self.logger.error("Failed to write email note: \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
         }
     }
 
-    /// Search the email output folder for an existing note whose filename contains the cleaned subject.
-    private func findExistingEmailNote(subject: String) -> URL? {
-        guard let dir = settings.emailOutputDirectoryURL else { return nil }
+    /// Search the vault's email output folder for an existing note whose filename contains the cleaned subject.
+    private func findExistingEmailNote(subject: String, in vault: VaultConfig) -> URL? {
+        guard let dir = vault.emailOutputDirectoryURL else { return nil }
         guard FileManager.default.fileExists(atPath: dir.path) else { return nil }
 
         let sanitized = MarkdownGenerator.sanitizeFilename(subject)
@@ -373,11 +432,11 @@ final class AppViewModel {
         }
     }
 
-    /// Save non-inline attachments to the attachment directory.
+    /// Save non-inline attachments to the vault's attachment directory.
     /// Returns the list of actual saved filenames (may differ from originals if
     /// duplicates caused -2/-3 suffixes), in the same order as the email's attachments.
-    private func saveAttachments(from email: EmailMessage) -> [String] {
-        guard let attachDir = settings.attachmentDirectoryURL else { return [] }
+    private func saveAttachments(from email: EmailMessage, vault: VaultConfig) -> [String] {
+        guard let attachDir = vault.attachmentDirectoryURL else { return [] }
         let fm = FileManager.default
         var savedFilenames: [String] = []
 
@@ -406,8 +465,8 @@ final class AppViewModel {
         return savedFilenames
     }
 
-    private func writeEmailMarkdown(_ content: String, filename: String) throws -> URL {
-        guard let outputDir = settings.emailOutputDirectoryURL else {
+    private func writeEmailMarkdown(_ content: String, filename: String, vault: VaultConfig) throws -> URL {
+        guard let outputDir = vault.emailOutputDirectoryURL else {
             throw NSError(domain: "ICSNote", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault path not configured"])
         }
         if !FileManager.default.fileExists(atPath: outputDir.path) {
@@ -428,32 +487,42 @@ final class AppViewModel {
 
     // MARK: - Recurring Event Handling
 
-    private func handleParsedEvent(_ event: CalendarEvent) {
+    private func handleParsedEvent(_ event: CalendarEvent, vault: VaultConfig) {
         if event.isRecurring {
             pendingEvent = event
+            pendingEventVaultID = vault.id
             selectedDate = Date()
             showDatePicker = true
         } else {
-            writeAndRecord(event: event)
+            writeAndRecord(event: event, vault: vault)
         }
     }
 
     func confirmRecurringDate() {
-        guard let event = pendingEvent else { return }
+        guard let event = pendingEvent,
+              let vaultID = pendingEventVaultID,
+              let vault = settings.vault(id: vaultID) else {
+            pendingEvent = nil
+            pendingEventVaultID = nil
+            showDatePicker = false
+            return
+        }
         let adjusted = event.withDate(selectedDate)
-        writeAndRecord(event: adjusted)
+        writeAndRecord(event: adjusted, vault: vault)
         pendingEvent = nil
+        pendingEventVaultID = nil
         showDatePicker = false
     }
 
     func cancelRecurringDate() {
         pendingEvent = nil
+        pendingEventVaultID = nil
         showDatePicker = false
     }
 
     // MARK: - Write & Record
 
-    private func writeAndRecord(event: CalendarEvent) {
+    private func writeAndRecord(event: CalendarEvent, vault: VaultConfig) {
         do {
             let markdown = MarkdownGenerator.generate(
                 event: event,
@@ -466,7 +535,7 @@ final class AppViewModel {
                 event: event,
                 textReplacements: settings.replacementTuples
             )
-            let outputURL = try writeMarkdown(markdown, filename: filename)
+            let outputURL = try writeMarkdown(markdown, filename: filename, vault: vault)
 
             var stripped: [String] = []
             if settings.stripZoom && event.description.contains("Zoom") { stripped.append("Zoom") }
@@ -477,7 +546,9 @@ final class AppViewModel {
                 attendeeCount: event.attendees.count,
                 strippedInfo: stripped.isEmpty ? nil : stripped.joined(separator: ", ") + " stripped",
                 outputURL: outputURL,
-                timestamp: Date()
+                timestamp: Date(),
+                vaultID: vault.id,
+                vaultName: vault.name
             )
             recentConversions.insert(conversion, at: 0)
             Self.logger.info("Converted \(filename, privacy: .public)")
@@ -485,6 +556,10 @@ final class AppViewModel {
             if settings.playSuccessSound {
                 NSSound(named: .init("Glass"))?.play()
             }
+
+            // Fire any matching post-save hooks (fire-and-forget)
+            let hookContext = HookContext.meeting(event: event, vault: vault, outputURL: outputURL)
+            fireHooks(context: hookContext)
         } catch {
             Self.logger.error("Failed to write markdown: \(error.localizedDescription, privacy: .public)")
             showError(message: error.localizedDescription)
@@ -493,8 +568,8 @@ final class AppViewModel {
 
     // MARK: - File Writing
 
-    private func writeMarkdown(_ content: String, filename: String) throws -> URL {
-        guard let outputDir = settings.outputDirectoryURL else {
+    private func writeMarkdown(_ content: String, filename: String, vault: VaultConfig) throws -> URL {
+        guard let outputDir = vault.outputDirectoryURL else {
             throw NSError(domain: "ICSNote", code: 1, userInfo: [NSLocalizedDescriptionKey: "Vault path not configured"])
         }
         if !FileManager.default.fileExists(atPath: outputDir.path) {
@@ -513,6 +588,35 @@ final class AppViewModel {
         return fileURL
     }
 
+    // MARK: - Hook Firing
+
+    /// Fire hooks and record each run in `hookRuns` for the Activity window.
+    private func fireHooks(context: HookContext) {
+        HookRunner.fire(
+            hooks: settings.hooks,
+            context: context,
+            customSkillPaths: settings.customSkillPaths,
+            onStart: { [weak self] run in
+                guard let self else { return }
+                self.hookRuns.insert(run, at: 0)
+                // Cap the list to prevent unbounded growth
+                if self.hookRuns.count > Self.maxHookRuns {
+                    self.hookRuns = Array(self.hookRuns.prefix(Self.maxHookRuns))
+                }
+            },
+            onFinish: { [weak self] run in
+                guard let self else { return }
+                if let idx = self.hookRuns.firstIndex(where: { $0.id == run.id }) {
+                    self.hookRuns[idx] = run
+                }
+            }
+        )
+    }
+
+    func clearHookRuns() {
+        hookRuns.removeAll()
+    }
+
     // MARK: - Utilities
 
     func revealInFinder(_ conversion: RecentConversion) {
@@ -520,25 +624,38 @@ final class AppViewModel {
     }
 
     func openInObsidian(_ conversion: RecentConversion) {
-        // Build obsidian://open URL from vault path and file
-        // Format: obsidian://open?vault=VaultName&file=Subfolder/Filename
-        let vaultName = (settings.vaultPath as NSString).lastPathComponent
-        let baseName = conversion.filename.hasSuffix(".md")
-            ? String(conversion.filename.dropLast(3))
-            : conversion.filename
-        let fileWithinVault: String
-        if settings.subfolder.isEmpty {
-            fileWithinVault = baseName
+        // Determine the target vault: prefer the conversion's recorded vault,
+        // fall back to the active vault for older entries without vaultID.
+        let vault: VaultConfig?
+        if let id = conversion.vaultID, let v = settings.vault(id: id) {
+            vault = v
         } else {
-            fileWithinVault = "\(settings.subfolder)/\(baseName)"
+            vault = settings.activeVault
+        }
+        guard let vault else { return }
+
+        // Build the file path within the vault by stripping the vault path prefix
+        // from the output URL. This correctly handles whichever subfolder the
+        // note was written to (meetings vs emails vs custom).
+        let vaultBase = URL(fileURLWithPath: vault.path).standardizedFileURL.path
+        let outputPath = conversion.outputURL.standardizedFileURL.path
+        var relative = outputPath
+        if outputPath.hasPrefix(vaultBase + "/") {
+            relative = String(outputPath.dropFirst(vaultBase.count + 1))
+        } else if outputPath.hasPrefix(vaultBase) {
+            relative = String(outputPath.dropFirst(vaultBase.count))
+        }
+        // Strip .md extension for Obsidian URI
+        if relative.hasSuffix(".md") {
+            relative = String(relative.dropLast(3))
         }
 
         var components = URLComponents()
         components.scheme = "obsidian"
         components.host = "open"
         components.queryItems = [
-            URLQueryItem(name: "vault", value: vaultName),
-            URLQueryItem(name: "file", value: fileWithinVault),
+            URLQueryItem(name: "vault", value: vault.name),
+            URLQueryItem(name: "file", value: relative),
         ]
 
         if let url = components.url {

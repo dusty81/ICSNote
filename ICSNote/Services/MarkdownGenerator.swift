@@ -429,15 +429,19 @@ enum MarkdownGenerator {
             // Underscore-delimited block (external orgs, SafeLinks format).
             // Outer delimiters are ~80 chars, inner separator is ~32 chars,
             // so _{40,} skips the inner one and matches the closing delimiter.
-            "(?s)_{40,}\\nMicrosoft Teams meeting.*?_{40,}",
+            // \s+ instead of \n handles blank lines between delimiter and header.
+            "(?s)_{40,}\\s+Microsoft Teams meeting.*?_{40,}",
             // Standard internal Teams format
             "(?s)Join Microsoft Teams Meeting.*?Learn more about Teams[^\\n]*",
             "(?s)Microsoft Teams meeting.*?Learn more about Teams[^\\n]*",
             "(?s)________________\\n.*?Microsoft Teams.*?Learn more about Teams[^\\n]*",
             // Fallback: Teams block ending with Reset dial-in PIN
-            "(?s)Microsoft Teams meeting\\nJoin:.*?Reset dial-in PIN[^\\n]*",
+            "(?s)Microsoft Teams meeting.*?Reset dial-in PIN[^\\n]*",
+            "(?s)Microsoft Teams meeting.*?Reset PIN[^\\n]*",
             // Fallback: Teams block ending with Meeting options
-            "(?s)Microsoft Teams meeting\\nJoin:.*?Meeting options[^\\n]*",
+            "(?s)Microsoft Teams meeting.*?Meeting options[^\\n]*",
+            // Fallback: Teams block with "Click here to join the meeting"
+            "(?s)Microsoft Teams meeting.*?Learn More[^\\n]*",
         ]
         var result = text
         for pattern in patterns {

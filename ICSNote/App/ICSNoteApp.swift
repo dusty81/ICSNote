@@ -22,6 +22,17 @@ struct ICSNoteApp: App {
         }
         .windowResizability(.contentSize)
 
+        Window("Hook Activity", id: "hookActivity") {
+            Group {
+                if let viewModel {
+                    HookActivityView(viewModel: viewModel)
+                } else {
+                    ProgressView()
+                }
+            }
+        }
+        .windowResizability(.contentSize)
+
         Settings {
             SettingsView(settings: settings)
         }
