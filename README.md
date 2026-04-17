@@ -4,7 +4,7 @@
   <img src="ICSNote/Resources/AppIcon.svg" width="128" height="128" alt="ICSNote app icon">
 </p>
 
-A native macOS app that converts ICS calendar files and EML email messages into Obsidian-compatible markdown notes. Drag an appointment or email from Outlook for Mac (or any `.ics`/`.eml` file from Finder) and get a clean, queryable note in your vault -- ready for note-taking.
+A native macOS app that converts ICS calendar files and EML email messages into Obsidian-compatible markdown notes. Drag an appointment or email from Outlook for Mac (or any `.ics`/`.eml` file from Finder), and get a clean, queryable note routed into the right vault — ready for note-taking, searching with Dataview, and automated follow-up via Claude Code skills.
 
 ## Features
 
@@ -15,26 +15,51 @@ A native macOS app that converts ICS calendar files and EML email messages into 
 - **YAML frontmatter** (Dataview-queryable): title, date, time, organizer, attendees with acceptance status, location, categories, status, type
 - **Metadata table** in the note body (similar to OneNote meeting notes)
 - **Attendee list with status indicators**: ✅ accepted, ❌ declined, ❓ tentative, ➖ no response
-- **Zoom and Microsoft Teams boilerplate stripping** -- removes SafeLinks, H.323/SIP blocks, dial-in numbers, and join links
-- **Recurring meeting support** -- detects RRULE series and prompts with a date picker (defaults to today) so you always get the correct occurrence date
+- **Zoom and Microsoft Teams boilerplate stripping** — removes SafeLinks, H.323/SIP blocks, dial-in numbers, join links, and the various underscore-delimited external-org footer formats
+- **Recurring meeting support** — detects RRULE series and prompts with a date picker (defaults to today) so you always get the correct occurrence date
 
 ### Emails (EML)
 
 - **Drag-and-drop** `.eml` files from Outlook or Finder
-- **Full MIME parsing** -- multipart traversal, quoted-printable and base64 decoding, Windows-1252 charset support
-- **Attachment extraction** -- real attachments (xlsx, pdf, etc.) saved to vault and linked with `[[wiki-links]]`; inline signature images skipped
-- **Thread merging** -- dropping a reply (RE:/FW:/Fwd:) appends to the existing note with the same subject, collapsing previous messages into Obsidian callout blocks
-- **Separate email subfolder** and configurable email notes template
+- **Full MIME parsing** — multipart traversal, quoted-printable and base64 decoding, Windows-1252 charset support
+- **Attachment extraction** — real attachments (xlsx, pdf, etc.) saved to the vault and linked with `[[wiki-links]]`. Existing PDFs are embedded inline with `![[...]]`. Inline signature images are skipped.
+- **Automatic PDF conversion** (optional) — convert `.doc`, `.docx`, `.rtf`, `.html`, `.txt` attachments to PDF alongside the original. Modes: Never / Always / Ask-per-drop.
+- **Thread merging** — dropping a reply (RE:/FW:/Fwd:) appends to the existing note with the same subject, collapsing previous messages into Obsidian callout blocks
+- **Configurable email subfolder and notes template**
+
+### Multi-vault
+
+- **Auto-discovers vaults** from Obsidian's own registry (`~/Library/Application Support/obsidian/obsidian.json`) — no manual path typing
+- **Per-vault configuration**: separate meeting, email, and attachment subfolders for each vault
+- **Three drop zone layouts** — pick what suits your workflow:
+  - **Grid** — one drop zone per vault (best for 1–3 vaults, max 6)
+  - **Dropdown** — single zone with a vault picker (scales to any count)
+  - **Segmented** — single zone with a tab-style vault selector (2–5 vaults)
+- **Visual vault indicators** — each vault gets a stable color + shape combination (12 colors × 8 shapes: circle, square, triangle, diamond, hexagon, pentagon, star, rhombus). Deterministic from the vault path so the same vault always looks the same.
+- **Per-conversion vault badges** in the Recent list so you always know where a note landed
+
+### Post-save hooks (Claude Code skills)
+
+Fire a Claude Code skill automatically after a note is saved — summarize the meeting, generate a briefing, sync to downstream systems, enrich the note with context from other tools.
+
+- **Skill picker** populated from discovered skills (user-level `~/.claude/skills/`, plugin cache, per-vault `.claude/skills/`, plus user-configured custom directories scanned recursively)
+- **13+ template variables** for dynamic prompts: `{{file_path}}`, `{{title}}`, `{{organizer}}`, `{{from}}`, `{{skill_path}}`, `{{skill_content}}`, and more
+- **Three prompt template styles** from the "Insert default" menu:
+  1. Reference skill by path
+  2. Inline skill content directly (most reliable — no file reads needed)
+  3. Invoke by skill name (standard Claude locations only)
+- **Per-hook configuration**: trigger (meeting / email / any), vault filter (any / specific), timeout, permission mode (accept edits / bypass / plan / default), and optional `--allowedTools` list for granular MCP tool access
+- **Hook Activity window** — dedicated window showing every run with status (running / success / failure / skipped), duration, and expandable tabs for the full prompt, stdout, and stderr (selectable, copy-able)
+- **Toolbar failure indicator** — bolt icon badges red when recent runs have failed, so problems are visible without opening the activity window
 
 ### Shared
 
-- **Title text replacements** -- configurable find/replace rules (e.g., "1:1" to "One on One", strip "Fwd:", "RE:")
-- **Configurable output** -- pick your Obsidian vault and subfolder (separate subfolders for meetings and emails)
-- **Notes template** -- customizable per content type (meetings and emails)
-- **Recent conversions list** with Open in Obsidian and Reveal in Finder buttons
+- **Title text replacements** — configurable find/replace rules (e.g., "1:1" → "One on One", strip "Fwd:", "RE:")
+- **Notes templates** — customizable markdown appended under `## Notes` — one template for meetings, one for emails
+- **Recent conversions list** with Open in Obsidian and Reveal in Finder buttons, and static clock-time timestamps
 - **Success sound** on conversion (toggleable)
-- **Duplicate file avoidance** -- appends a numeric suffix when a file already exists
-- **Temp file cleanup** -- no data left on disk after processing
+- **Duplicate file avoidance** — appends a numeric suffix when a file already exists
+- **Temp file cleanup** — no data left on disk after processing
 
 ## Output Example
 
@@ -99,18 +124,21 @@ Review sprint progress and blockers.
 
 ## Email Output Example
 
-A dropped email produces a file named `2026-04-03 Project status update.md`:
+A dropped email with attachments produces a file with the body, followed by embedded PDFs (and wiki-links to original files):
 
 ```markdown
 ---
-title: "Project status update"
-date: 2026-04-03
-time: "2:55 PM (CDT)"
-from: "Eve Example"
+title: "Quarterly Review"
+date: 2026-04-17
+time: "8:36 AM (CDT)"
+from: "Alice Example"
 to:
-  - "Bob Example"
-  - "Alex User"
-subject: "Project status update"
+  - "Board members"
+subject: "Quarterly Review"
+attachments:
+  - "Example Org Board of Directors Agenda April 2026.doc"
+  - "Example Org Board of Directors Agenda April 2026.pdf"
+  - "Example Presentation compressed.pdf"
 type: email
 ---
 
@@ -118,52 +146,54 @@ type: email
 
 | Field | Value |
 |-------|-------|
-| **From** | Eve Example (TExample@example.com) |
-| **To** | Bob Example, Alex User |
-| **Date** | Friday, April 3, 2026 |
-| **Time** | 2:55 PM (CDT) |
-| **Subject** | Project status update |
+| **From** | Alice Example (aexample@example.com) |
+| **To** | Board members |
+| **Date** | Friday, April 17, 2026 |
+| **Subject** | Quarterly Review |
 
 ## Body
 
-Hi guys,
+Please find the attached agenda and supporting materials...
 
-Wanted to share what we've put in place around AI agent governance...
+## Attachments
+
+- [[Example Org Board of Directors Agenda April 2026.doc]]
+- ![[Example Org Board of Directors Agenda April 2026.pdf]]
+- ![[Example Presentation compressed.pdf]]
 
 ## Notes
-
 ```
 
-When a reply is dropped (e.g., "RE: Project status update"), the existing note is updated -- the new message replaces ## Body and the previous message moves into a collapsed callout:
+When a reply is dropped (e.g., "RE: Quarterly Review"), the existing note is updated — the new message replaces `## Body` and the previous message moves into a collapsed callout:
 
 ```markdown
 ## Previous Messages
 
-> [!quote]- Eve Example — 2026-04-03 2:55 PM (CDT)
-> Hi guys,
->
-> Wanted to share what we've put in place around AI agent governance...
+> [!quote]- Alice Example — 2026-04-17 8:36 AM (CDT)
+> Please find the attached agenda and supporting materials...
 ```
 
 ## Settings
 
-The Settings window has five tabs:
+The Settings window has six tabs:
 
 | Tab | What it controls |
 |-----|-----------------|
-| **Vault** | Obsidian vault path and subfolder for meeting output files |
+| **Vaults** | Auto-discovered Obsidian vaults with per-vault enable toggle, meeting/email/attachment subfolders, and drop zone layout picker |
 | **Stripping** | Toggle Zoom and Microsoft Teams boilerplate removal; toggle success sound |
-| **Replacements** | Editable find/replace rules applied to titles |
+| **Replacements** | Editable find/replace rules applied to meeting and email titles |
 | **Notes** | Markdown template appended under the Notes heading for meetings |
-| **Email** | Email subfolder, attachment extraction, thread merging, and email notes template |
+| **Email** | Attachment extraction, PDF conversion mode (Never/Always/Ask), thread merging, and email notes template |
+| **Hooks** | Post-save hook editor with skill picker, prompt template, permission mode, timeout, and allowed tools per hook |
 
 ## Tech
 
-- Pure SwiftUI -- no external dependencies
+- Pure SwiftUI — no external dependencies
 - XcodeGen for project generation (`project.yml`)
 - Swift 5.9, macOS 14+
 - `@Observable` / `@MainActor` architecture
 - Security-scoped resource handling for sandboxed file access
+- PDF conversion via `NSAttributedString` + `NSPrintOperation` (pure AppKit, no Office apps or external binaries required)
 
 ## Building from Source
 
@@ -173,9 +203,27 @@ Requires Xcode 16+ and [XcodeGen](https://github.com/yonaskolb/XcodeGen).
 # Generate the Xcode project
 xcodegen generate
 
-# Build
+# Build (debug)
 DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme ICSNote -destination 'platform=macOS' build
+
+# Run tests
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild test -scheme ICSNoteTests -destination 'platform=macOS'
+
+# Release build
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer xcodebuild -scheme ICSNote -configuration Release -destination 'platform=macOS' -derivedDataPath ./build build
 ```
+
+## Hooks — Requirements
+
+The hook system shells out to the `claude` CLI. For hooks to run:
+
+- Install Claude Code and ensure `claude` is in your PATH, or at one of:
+  - `/opt/homebrew/bin/claude`
+  - `/usr/local/bin/claude`
+  - `~/.local/bin/claude`
+- For skills not in standard Claude locations, add the parent directory under **Settings → Hooks → Custom skill directories** (scanned recursively)
+
+If the CLI isn't detected, the Hooks tab shows a warning and hooks are silently skipped — nothing else breaks.
 
 ## License
 
