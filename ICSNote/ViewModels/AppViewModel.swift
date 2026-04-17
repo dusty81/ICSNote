@@ -31,6 +31,12 @@ final class AppViewModel {
     var showDatePicker = false
     var selectedDate = Date()
 
+    // PDF conversion prompt state (Ask mode)
+    var pendingEmail: EmailMessage?
+    var pendingConvertibleFilenames: [String] = []
+    var pendingEmailFilenames: [String] = []
+    var showPDFConvertPrompt = false
+
     init(settings: AppSettings) {
         self.settings = settings
     }
@@ -214,12 +220,90 @@ final class AppViewModel {
     }
 
     private func writeEmailAndRecord(email: EmailMessage) {
-        do {
-            // Save attachments first
-            if settings.saveAttachments {
-                saveAttachments(from: email)
-            }
+        // Save attachments first, collecting the actual saved filenames
+        var savedFilenames: [String] = []
+        if settings.saveAttachments {
+            savedFilenames = saveAttachments(from: email)
+        } else {
+            savedFilenames = email.attachments.filter { !$0.isInline }.map { $0.filename }
+        }
 
+        // Determine convertible files based on the original (non-PDF) attachments
+        let convertibleFilenames = savedFilenames.filter { filename in
+            !filename.lowercased().hasSuffix(".pdf") && PDFConverter.canConvert(filename: filename)
+        }
+
+        switch settings.pdfConversionMode {
+        case .never:
+            finalizeEmail(email: email, attachmentFilenames: savedFilenames)
+        case .always:
+            let finalFilenames = convertAttachmentsToPDF(originalFilenames: savedFilenames, convertibleFilenames: convertibleFilenames)
+            finalizeEmail(email: email, attachmentFilenames: finalFilenames)
+        case .ask:
+            if convertibleFilenames.isEmpty {
+                finalizeEmail(email: email, attachmentFilenames: savedFilenames)
+            } else {
+                // Store state and show prompt; user's choice will call confirmPDFConversion(convert:)
+                pendingEmail = email
+                pendingConvertibleFilenames = convertibleFilenames
+                pendingEmailFilenames = savedFilenames
+                showPDFConvertPrompt = true
+            }
+        }
+    }
+
+    /// Called from the PDF conversion prompt dialog.
+    func confirmPDFConversion(convert: Bool) {
+        guard let email = pendingEmail else { return }
+        let originalFilenames = pendingEmailFilenames
+        let finalFilenames: [String]
+        if convert {
+            finalFilenames = convertAttachmentsToPDF(
+                originalFilenames: originalFilenames,
+                convertibleFilenames: pendingConvertibleFilenames
+            )
+        } else {
+            finalFilenames = originalFilenames
+        }
+        pendingEmail = nil
+        pendingConvertibleFilenames = []
+        pendingEmailFilenames = []
+        showPDFConvertPrompt = false
+        finalizeEmail(email: email, attachmentFilenames: finalFilenames)
+    }
+
+    /// Convert each convertible file in the attachment directory to a PDF.
+    /// Returns the merged filename list (originals + new PDFs, preserving order).
+    private func convertAttachmentsToPDF(originalFilenames: [String], convertibleFilenames: [String]) -> [String] {
+        guard let attachDir = settings.attachmentDirectoryURL else { return originalFilenames }
+
+        var result: [String] = []
+        for filename in originalFilenames {
+            result.append(filename)
+            if convertibleFilenames.contains(filename) {
+                let sourceURL = attachDir.appendingPathComponent(filename)
+                let baseName = (filename as NSString).deletingPathExtension
+                var pdfURL = attachDir.appendingPathComponent("\(baseName).pdf")
+                // Avoid collision
+                var counter = 2
+                while FileManager.default.fileExists(atPath: pdfURL.path) {
+                    pdfURL = attachDir.appendingPathComponent("\(baseName)-\(counter).pdf")
+                    counter += 1
+                }
+                if PDFConverter.convert(sourceURL: sourceURL, destinationURL: pdfURL) {
+                    result.append(pdfURL.lastPathComponent)
+                    Self.logger.info("Converted \(filename, privacy: .public) to \(pdfURL.lastPathComponent, privacy: .public)")
+                } else {
+                    Self.logger.error("PDF conversion failed for \(filename, privacy: .public)")
+                }
+            }
+        }
+        return result
+    }
+
+    /// Write the email note and record the conversion.
+    private func finalizeEmail(email: EmailMessage, attachmentFilenames: [String]) {
+        do {
             let filename = MarkdownGenerator.generateFilename(
                 email: email,
                 textReplacements: settings.replacementTuples
@@ -244,11 +328,12 @@ final class AppViewModel {
                 let markdown = MarkdownGenerator.generate(
                     email: email,
                     textReplacements: settings.replacementTuples,
-                    notesTemplate: settings.emailNotesTemplate
+                    notesTemplate: settings.emailNotesTemplate,
+                    attachmentFilenames: attachmentFilenames
                 )
                 let outputURL = try writeEmailMarkdown(markdown, filename: filename)
 
-                let attachmentCount = email.attachments.filter { !$0.isInline }.count
+                let attachmentCount = attachmentFilenames.count
                 let info = attachmentCount > 0 ? "\(attachmentCount) attachment\(attachmentCount == 1 ? "" : "s")" : nil
 
                 let conversion = RecentConversion(
@@ -288,9 +373,13 @@ final class AppViewModel {
         }
     }
 
-    private func saveAttachments(from email: EmailMessage) {
-        guard let attachDir = settings.attachmentDirectoryURL else { return }
+    /// Save non-inline attachments to the attachment directory.
+    /// Returns the list of actual saved filenames (may differ from originals if
+    /// duplicates caused -2/-3 suffixes), in the same order as the email's attachments.
+    private func saveAttachments(from email: EmailMessage) -> [String] {
+        guard let attachDir = settings.attachmentDirectoryURL else { return [] }
         let fm = FileManager.default
+        var savedFilenames: [String] = []
 
         for attachment in email.attachments where !attachment.isInline {
             do {
@@ -308,11 +397,13 @@ final class AppViewModel {
                     }
                 }
                 try attachment.data.write(to: fileURL)
+                savedFilenames.append(fileURL.lastPathComponent)
                 Self.logger.info("Saved attachment: \(fileURL.lastPathComponent, privacy: .public)")
             } catch {
                 Self.logger.error("Failed to save attachment \(attachment.filename, privacy: .public): \(error.localizedDescription, privacy: .public)")
             }
         }
+        return savedFilenames
     }
 
     private func writeEmailMarkdown(_ content: String, filename: String) throws -> URL {

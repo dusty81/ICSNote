@@ -321,9 +321,21 @@ enum EMLParser {
             // Skip text parts (body alternatives)
             if ct.hasPrefix("text/plain") || ct.hasPrefix("text/html") { continue }
 
-            let disposition = part.headers["content-disposition"] ?? ""
+            // Content-Disposition: attachment wins even if Content-ID is set.
+            // Outlook puts Content-IDs on real attachments too, so we can't
+            // treat Content-ID presence alone as "inline".
+            let disposition = (part.headers["content-disposition"] ?? "").lowercased()
             let contentID = part.headers["content-id"] ?? ""
-            let isInline = disposition.lowercased().contains("inline") || !contentID.isEmpty
+            let isInline: Bool
+            if disposition.contains("attachment") {
+                isInline = false
+            } else if disposition.contains("inline") {
+                isInline = true
+            } else {
+                // No disposition — treat as inline only if it has a Content-ID
+                // (typical for embedded signature images)
+                isInline = !contentID.isEmpty
+            }
 
             let filename = extractFilename(from: part.headers) ?? "attachment"
 

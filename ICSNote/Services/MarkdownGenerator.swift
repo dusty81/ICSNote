@@ -151,16 +151,24 @@ enum MarkdownGenerator {
     static func generate(
         email: EmailMessage,
         textReplacements: [(find: String, replace: String)] = [],
-        notesTemplate: String = ""
+        notesTemplate: String = "",
+        attachmentFilenames: [String]? = nil
     ) -> String {
         var sections: [String] = []
-        sections.append(generateEmailFrontmatter(email: email))
+        sections.append(generateEmailFrontmatter(email: email, attachmentFilenames: attachmentFilenames))
         sections.append(generateEmailMetadataTable(email: email))
-        let realAttachments = email.attachments.filter { !$0.isInline }
-        if !realAttachments.isEmpty {
-            sections.append(generateAttachmentsSection(attachments: realAttachments))
-        }
         sections.append(generateBodySection(body: email.body))
+        // Use explicit filename list if provided (includes converted PDFs);
+        // otherwise fall back to the email's real attachments.
+        let filenames: [String]
+        if let attachmentFilenames {
+            filenames = attachmentFilenames
+        } else {
+            filenames = email.attachments.filter { !$0.isInline }.map(\.filename)
+        }
+        if !filenames.isEmpty {
+            sections.append(generateAttachmentsSection(filenames: filenames))
+        }
         sections.append(generateNotesSection(template: notesTemplate))
         return sections.joined(separator: "\n")
     }
@@ -227,7 +235,7 @@ enum MarkdownGenerator {
 
     // MARK: - Email Frontmatter
 
-    private static func generateEmailFrontmatter(email: EmailMessage) -> String {
+    private static func generateEmailFrontmatter(email: EmailMessage, attachmentFilenames: [String]? = nil) -> String {
         var lines: [String] = ["---"]
         lines.append("title: \"\(escapeFrontmatter(email.cleanSubject))\"")
         lines.append("date: \(formatDateOnly(email.date))")
@@ -248,11 +256,16 @@ enum MarkdownGenerator {
             }
         }
         lines.append("subject: \"\(escapeFrontmatter(email.subject))\"")
-        let realAttachments = email.attachments.filter { !$0.isInline }
-        if !realAttachments.isEmpty {
+        let filenames: [String]
+        if let attachmentFilenames {
+            filenames = attachmentFilenames
+        } else {
+            filenames = email.attachments.filter { !$0.isInline }.map { $0.filename }
+        }
+        if !filenames.isEmpty {
             lines.append("attachments:")
-            for attachment in realAttachments {
-                lines.append("  - \"\(escapeFrontmatter(attachment.filename))\"")
+            for name in filenames {
+                lines.append("  - \"\(escapeFrontmatter(name))\"")
             }
         }
         lines.append("type: email")
@@ -286,10 +299,15 @@ enum MarkdownGenerator {
         return lines.joined(separator: "\n")
     }
 
-    private static func generateAttachmentsSection(attachments: [EmailAttachment]) -> String {
+    private static func generateAttachmentsSection(filenames: [String]) -> String {
         var lines: [String] = ["## Attachments", ""]
-        for attachment in attachments {
-            lines.append("- [[\(attachment.filename)]]")
+        for filename in filenames {
+            // Embed PDFs inline with ![[...]], link other files with [[...]]
+            if filename.lowercased().hasSuffix(".pdf") {
+                lines.append("- ![[\(filename)]]")
+            } else {
+                lines.append("- [[\(filename)]]")
+            }
         }
         lines.append("")
         return lines.joined(separator: "\n")

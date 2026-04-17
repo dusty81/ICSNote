@@ -60,6 +60,12 @@ struct MainView: View {
         .sheet(isPresented: $viewModel.showDatePicker) {
             RecurringDatePickerView(viewModel: viewModel)
         }
+        .alert("Convert attachments to PDF?", isPresented: $viewModel.showPDFConvertPrompt) {
+            Button("Convert") { viewModel.confirmPDFConversion(convert: true) }
+            Button("Skip", role: .cancel) { viewModel.confirmPDFConversion(convert: false) }
+        } message: {
+            Text("This email has \(viewModel.pendingConvertibleFilenames.count) convertible attachment\(viewModel.pendingConvertibleFilenames.count == 1 ? "" : "s"). Save a PDF version alongside the original and embed it in the note?")
+        }
         .alert("Error", isPresented: $viewModel.showError) {
             Button("OK") {}
         } message: {

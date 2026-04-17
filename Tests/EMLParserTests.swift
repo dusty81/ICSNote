@@ -139,6 +139,52 @@ final class EMLParserTests: XCTestCase {
         XCTAssertEqual(realAttachments.count, 0)
     }
 
+    // MARK: - Real Outlook Email with Multiple Attachments
+
+    func testBoardMeetingExtractsAllRealAttachments() throws {
+        // Outlook email with 5 attachments — all have both Content-Disposition: attachment
+        // AND Content-ID. Previously all were mis-classified as inline and dropped.
+        let eml = try loadFixture("board-meeting-with-attachments")
+        let email = try EMLParser.parse(eml)
+
+        let real = email.attachments.filter { !$0.isInline }
+        XCTAssertGreaterThanOrEqual(real.count, 5, "Should extract all 5 Outlook attachments despite Content-ID presence")
+
+        let names = Set(real.map { $0.filename })
+        XCTAssertTrue(names.contains { $0.contains("Example Presentation") && $0.hasSuffix(".pdf") })
+        XCTAssertTrue(names.contains { $0.contains("Committee Notes") })
+        XCTAssertTrue(names.contains("Professional Standards.docx"))
+    }
+
+    func testAttachmentWithContentIDAndDispositionIsNotInline() {
+        // Regression test for the bug: Content-ID should NOT override
+        // Content-Disposition: attachment
+        let eml = """
+        From: test@example.com
+        Subject: Test
+        Date: Fri, 3 Apr 2026 19:55:12 +0000
+        Content-Type: multipart/mixed; boundary="boundary1"
+
+        --boundary1
+        Content-Type: text/plain
+
+        Body text
+
+        --boundary1
+        Content-Type: application/pdf; name="report.pdf"
+        Content-Disposition: attachment; filename="report.pdf"
+        Content-ID: <abc123@example>
+        Content-Transfer-Encoding: base64
+
+        SGVsbG8gUERG
+        --boundary1--
+        """
+        let email = try! EMLParser.parse(eml)
+        XCTAssertEqual(email.attachments.count, 1)
+        XCTAssertFalse(email.attachments[0].isInline, "Attachment with both Content-ID and Content-Disposition: attachment should NOT be inline")
+        XCTAssertEqual(email.attachments[0].filename, "report.pdf")
+    }
+
     // MARK: - MIME Boundary
 
     func testExtractsBoundary() {

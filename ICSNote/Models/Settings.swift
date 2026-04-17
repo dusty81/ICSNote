@@ -1,6 +1,14 @@
 import Foundation
 import SwiftUI
 
+enum PDFConversionMode: String, CaseIterable, Identifiable {
+    case never = "Never"
+    case always = "Always"
+    case ask = "Ask"
+
+    var id: String { rawValue }
+}
+
 struct TextReplacement: Codable, Identifiable, Equatable {
     let id: UUID
     var find: String
@@ -31,6 +39,7 @@ final class AppSettings {
     var attachmentSubfolder: String { didSet { save() } }
     var mergeEmailThreads: Bool { didSet { save() } }
     var emailNotesTemplate: String { didSet { save() } }
+    var pdfConversionMode: PDFConversionMode { didSet { save() } }
 
     var outputDirectoryURL: URL? {
         guard !vaultPath.isEmpty else { return nil }
@@ -72,6 +81,8 @@ final class AppSettings {
         self.attachmentSubfolder = defaults.string(forKey: "attachmentSubfolder") ?? "attachments"
         self.mergeEmailThreads = defaults.object(forKey: "mergeEmailThreads") as? Bool ?? true
         self.emailNotesTemplate = defaults.string(forKey: "emailNotesTemplate") ?? ""
+        let modeRaw = defaults.string(forKey: "pdfConversionMode") ?? PDFConversionMode.never.rawValue
+        self.pdfConversionMode = PDFConversionMode(rawValue: modeRaw) ?? .never
         if let data = defaults.data(forKey: "textReplacements"),
            let decoded = try? JSONDecoder().decode([TextReplacement].self, from: data) {
             self.textReplacements = decoded
@@ -97,6 +108,7 @@ final class AppSettings {
         defaults.set(attachmentSubfolder, forKey: "attachmentSubfolder")
         defaults.set(mergeEmailThreads, forKey: "mergeEmailThreads")
         defaults.set(emailNotesTemplate, forKey: "emailNotesTemplate")
+        defaults.set(pdfConversionMode.rawValue, forKey: "pdfConversionMode")
         if let data = try? JSONEncoder().encode(textReplacements) {
             defaults.set(data, forKey: "textReplacements")
         }

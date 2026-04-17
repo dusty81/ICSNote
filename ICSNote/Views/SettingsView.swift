@@ -108,7 +108,15 @@ struct SettingsView: View {
                 if settings.saveAttachments {
                     TextField("Attachment subfolder", text: $settings.attachmentSubfolder)
                         .textFieldStyle(.roundedBorder)
-                    Text("Attachments are saved here and linked with [[wiki-links]]. Inline images (logos) are skipped.")
+                    Text("Attachments are saved here and linked with [[wiki-links]]. Existing PDFs are embedded inline with ![[...]]. Inline signature images are skipped.")
+                        .font(.caption).foregroundStyle(.secondary)
+
+                    Picker("Convert to PDF", selection: $settings.pdfConversionMode) {
+                        ForEach(PDFConversionMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    Text("For convertible files (.doc, .docx, .rtf, .html, .txt), save a PDF copy alongside the original and embed the PDF in the note. Ask mode prompts once per email drop.")
                         .font(.caption).foregroundStyle(.secondary)
                 }
             }

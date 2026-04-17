@@ -82,6 +82,73 @@ final class EmailMarkdownTests: XCTestCase {
         XCTAssertFalse(markdown.contains("## Attachments"))
     }
 
+    // MARK: - Section Order
+
+    func testBodyAppearsBeforeAttachments() {
+        let email = EmailMessage(
+            subject: "Report", from: EmailContact(name: "J", email: "j@x.com"),
+            to: [], cc: [], date: Date(), body: "Here is the content.",
+            attachments: [
+                EmailAttachment(filename: "Report.pdf", contentType: "application/pdf", data: Data(), isInline: false),
+            ]
+        )
+        let markdown = MarkdownGenerator.generate(email: email)
+        guard let bodyIdx = markdown.range(of: "## Body")?.lowerBound,
+              let attachIdx = markdown.range(of: "## Attachments")?.lowerBound else {
+            XCTFail("Both ## Body and ## Attachments should be present")
+            return
+        }
+        XCTAssertLessThan(bodyIdx, attachIdx, "## Body should appear before ## Attachments")
+    }
+
+    // MARK: - PDF Embedding
+
+    func testEmbedsPDFsWithBangSyntax() {
+        let email = EmailMessage(
+            subject: "Report", from: EmailContact(name: "J", email: "j@x.com"),
+            to: [], cc: [], date: Date(), body: "See attached.",
+            attachments: [
+                EmailAttachment(filename: "Report.pdf", contentType: "application/pdf", data: Data(), isInline: false),
+            ]
+        )
+        let markdown = MarkdownGenerator.generate(email: email)
+        // PDFs use embedded syntax
+        XCTAssertTrue(markdown.contains("![[Report.pdf]]"), "PDF should be embedded with ![[...]]")
+        XCTAssertFalse(markdown.contains("- [[Report.pdf]]"), "PDF should not use plain [[...]]")
+    }
+
+    func testNonPDFsUsePlainWikiLinks() {
+        let email = EmailMessage(
+            subject: "Report", from: EmailContact(name: "J", email: "j@x.com"),
+            to: [], cc: [], date: Date(), body: "See attached.",
+            attachments: [
+                EmailAttachment(filename: "Report.docx", contentType: "app/docx", data: Data(), isInline: false),
+            ]
+        )
+        let markdown = MarkdownGenerator.generate(email: email)
+        XCTAssertTrue(markdown.contains("- [[Report.docx]]"), "Non-PDF should use plain [[...]]")
+        XCTAssertFalse(markdown.contains("![[Report.docx]]"), "Non-PDF should not use embedded syntax")
+    }
+
+    func testAttachmentFilenamesOverrideEmailAttachments() {
+        // When attachmentFilenames is passed explicitly (e.g., for converted PDFs),
+        // it should be used instead of email.attachments
+        let email = EmailMessage(
+            subject: "Mixed", from: EmailContact(name: "J", email: "j@x.com"),
+            to: [], cc: [], date: Date(), body: "See attached.",
+            attachments: [
+                EmailAttachment(filename: "Original.docx", contentType: "app/docx", data: Data(), isInline: false),
+            ]
+        )
+        // Simulate a conversion that produced both the original and a PDF
+        let markdown = MarkdownGenerator.generate(
+            email: email,
+            attachmentFilenames: ["Original.docx", "Original.pdf"]
+        )
+        XCTAssertTrue(markdown.contains("- [[Original.docx]]"), "Original should be linked")
+        XCTAssertTrue(markdown.contains("- ![[Original.pdf]]"), "Converted PDF should be embedded")
+    }
+
     // MARK: - Filename
 
     func testGeneratesEmailFilename() {
