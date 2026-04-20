@@ -491,7 +491,9 @@ final class AppViewModel {
         if event.isRecurring {
             pendingEvent = event
             pendingEventVaultID = vault.id
-            selectedDate = Date()
+            // Prefer the parser's suggested occurrence date (often the actual
+            // instance the user dragged) over a generic "today" default.
+            selectedDate = event.suggestedOccurrenceDate
             showDatePicker = true
         } else {
             writeAndRecord(event: event, vault: vault)

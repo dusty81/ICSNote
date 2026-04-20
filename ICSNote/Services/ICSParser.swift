@@ -94,14 +94,31 @@ enum ICSParser {
 
     private static func parseVEvent(_ vevent: String) -> CalendarEvent {
         let title = extractProperty("SUMMARY", from: vevent) ?? "Untitled Event"
-        var startDate = extractDate(property: "DTSTART", from: vevent) ?? Date()
-        var endDate = extractDate(property: "DTEND", from: vevent) ?? startDate
+        let startDate = extractDate(property: "DTSTART", from: vevent) ?? Date()
+        let endDate = extractDate(property: "DTEND", from: vevent) ?? startDate
 
         // Detect recurring events — the ViewModel will prompt the user for the date.
         // RRULE means this is a series definition; RECURRENCE-ID means this is a
         // modified instance of a series. Either way, the date is unreliable.
-        let isRecurring = extractProperty("RRULE", from: vevent) != nil
+        let rruleString = extractProperty("RRULE", from: vevent)
+        let isRecurring = rruleString != nil
             || extractProperty("RECURRENCE-ID", from: vevent) != nil
+
+        // Best guess at which occurrence the user dragged, used as the date
+        // picker default. Priority:
+        //   1. If startDate is today or later, use it (e.g., Outlook gave us
+        //      a modified instance with the actual date).
+        //   2. Otherwise, if there's an RRULE, advance to the next occurrence.
+        //   3. Otherwise, fall back to startDate.
+        let suggestedOccurrenceDate: Date = {
+            let today = Calendar.current.startOfDay(for: Date())
+            if startDate >= today { return startDate }
+            if let rrule = rruleString,
+               let next = nextOccurrence(from: startDate, rrule: rrule) {
+                return next
+            }
+            return startDate
+        }()
 
         let organizer = extractOrganizer(from: vevent)
         let attendees = extractAttendees(from: vevent)
@@ -121,7 +138,8 @@ enum ICSParser {
             location: location,
             categories: categories,
             status: status,
-            isRecurring: isRecurring
+            isRecurring: isRecurring,
+            suggestedOccurrenceDate: suggestedOccurrenceDate
         )
     }
 

@@ -47,10 +47,15 @@ struct CalendarEvent: Equatable {
     let categories: [String]
     let status: String
     let isRecurring: Bool
+    /// For recurring events, the parser's best guess at which occurrence the
+    /// user intended to drag — used as the default for the date picker.
+    /// Defaults to `startDate` when not explicitly set.
+    let suggestedOccurrenceDate: Date
 
     init(title: String, startDate: Date, endDate: Date, organizer: Organizer?,
          attendees: [Attendee], description: String, location: String,
-         categories: [String], status: String, isRecurring: Bool = false) {
+         categories: [String], status: String, isRecurring: Bool = false,
+         suggestedOccurrenceDate: Date? = nil) {
         self.title = title
         self.startDate = startDate
         self.endDate = endDate
@@ -61,6 +66,7 @@ struct CalendarEvent: Equatable {
         self.categories = categories
         self.status = status
         self.isRecurring = isRecurring
+        self.suggestedOccurrenceDate = suggestedOccurrenceDate ?? startDate
     }
 
     /// Returns a copy of this event with the date shifted to `date`,

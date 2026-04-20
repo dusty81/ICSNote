@@ -194,6 +194,73 @@ final class ICSParserTests: XCTestCase {
         XCTAssertEqual(duration, 45 * 60, accuracy: 1)
     }
 
+    // MARK: - Suggested Occurrence Date (picker default)
+
+    func testSuggestedOccurrenceUsesFutureStartDate() {
+        // A future VEVENT (e.g., a modified instance Outlook included)
+        // should suggest its own DTSTART, not today.
+        let futureDate = Calendar.current.date(byAdding: .day, value: 3, to: Date())!
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        let futureStr = formatter.string(from: futureDate)
+        let endStr = formatter.string(from: futureDate.addingTimeInterval(1800))
+        let ics = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        BEGIN:VEVENT
+        SUMMARY:Future modified instance
+        RECURRENCE-ID:\(futureStr)
+        DTSTART:\(futureStr)
+        DTEND:\(endStr)
+        STATUS:CONFIRMED
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let event = try! ICSParser.parse(ics)
+        XCTAssertTrue(event.isRecurring)
+        // The suggested date should equal the future DTSTART, not today
+        XCTAssertEqual(
+            event.suggestedOccurrenceDate.timeIntervalSince1970,
+            futureDate.timeIntervalSince1970,
+            accuracy: 1
+        )
+    }
+
+    func testSuggestedOccurrenceFallsBackToRRuleNextForPastStart() {
+        // A series with past DTSTART and a weekly RRULE should suggest the
+        // next RRULE occurrence rather than today.
+        let pastStart = Calendar.current.date(byAdding: .weekOfYear, value: -4, to: Date())!
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        let pastStr = formatter.string(from: pastStart)
+        let endStr = formatter.string(from: pastStart.addingTimeInterval(1800))
+        let ics = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        BEGIN:VEVENT
+        SUMMARY:Weekly
+        DTSTART:\(pastStr)
+        DTEND:\(endStr)
+        RRULE:FREQ=WEEKLY;INTERVAL=1
+        STATUS:CONFIRMED
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let event = try! ICSParser.parse(ics)
+        XCTAssertTrue(event.isRecurring)
+        // The suggestion should be in the future (next occurrence)
+        XCTAssertGreaterThanOrEqual(event.suggestedOccurrenceDate, Date().addingTimeInterval(-3600))
+    }
+
+    func testSuggestedOccurrenceEqualsStartDateForNonRecurring() {
+        let ics = try! loadFixture("simple-meeting")
+        let event = try! ICSParser.parse(ics)
+        XCTAssertFalse(event.isRecurring)
+        XCTAssertEqual(event.suggestedOccurrenceDate, event.startDate)
+    }
+
     // MARK: - Text Unescaping
 
     func testUnescapesDescriptionText() throws {
