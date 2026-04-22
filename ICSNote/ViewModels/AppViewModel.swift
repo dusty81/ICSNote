@@ -619,6 +619,13 @@ final class AppViewModel {
         hookRuns.removeAll()
     }
 
+    /// Cancel a running hook. Fire-and-forget — the onFinish callback will
+    /// update the row's status to `.cancelled` when the process exits.
+    func cancelHookRun(_ run: HookRun) {
+        guard !run.isComplete else { return }
+        Task { await HookRunner.cancel(runID: run.id) }
+    }
+
     // MARK: - Utilities
 
     func revealInFinder(_ conversion: RecentConversion) {

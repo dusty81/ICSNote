@@ -227,31 +227,41 @@ final class ICSParserTests: XCTestCase {
         )
     }
 
-    func testSuggestedOccurrenceFallsBackToRRuleNextForPastStart() {
-        // A series with past DTSTART and a weekly RRULE should suggest the
-        // next RRULE occurrence rather than today.
+    func testSuggestedOccurrenceForSeriesDefinitionIsToday() {
+        // A pure series definition (RRULE only, no RECURRENCE-ID) should
+        // default the picker to today — the series start date is rarely what
+        // the user wants, and the user is dragging "right now".
         let pastStart = Calendar.current.date(byAdding: .weekOfYear, value: -4, to: Date())!
+        let futureStart = Calendar.current.date(byAdding: .day, value: 10, to: Date())!
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
         formatter.timeZone = TimeZone(identifier: "UTC")
-        let pastStr = formatter.string(from: pastStart)
-        let endStr = formatter.string(from: pastStart.addingTimeInterval(1800))
-        let ics = """
-        BEGIN:VCALENDAR
-        VERSION:2.0
-        BEGIN:VEVENT
-        SUMMARY:Weekly
-        DTSTART:\(pastStr)
-        DTEND:\(endStr)
-        RRULE:FREQ=WEEKLY;INTERVAL=1
-        STATUS:CONFIRMED
-        END:VEVENT
-        END:VCALENDAR
-        """
-        let event = try! ICSParser.parse(ics)
-        XCTAssertTrue(event.isRecurring)
-        // The suggestion should be in the future (next occurrence)
-        XCTAssertGreaterThanOrEqual(event.suggestedOccurrenceDate, Date().addingTimeInterval(-3600))
+
+        for start in [pastStart, futureStart] {
+            let startStr = formatter.string(from: start)
+            let endStr = formatter.string(from: start.addingTimeInterval(1800))
+            let ics = """
+            BEGIN:VCALENDAR
+            VERSION:2.0
+            BEGIN:VEVENT
+            SUMMARY:Weekly
+            DTSTART:\(startStr)
+            DTEND:\(endStr)
+            RRULE:FREQ=WEEKLY;INTERVAL=1
+            STATUS:CONFIRMED
+            END:VEVENT
+            END:VCALENDAR
+            """
+            let event = try! ICSParser.parse(ics)
+            XCTAssertTrue(event.isRecurring)
+            // Suggestion should be ~today (within a few seconds of Date())
+            XCTAssertEqual(
+                event.suggestedOccurrenceDate.timeIntervalSinceNow,
+                0,
+                accuracy: 5,
+                "Series-def picker default should be today regardless of series start (\(start))"
+            )
+        }
     }
 
     func testSuggestedOccurrenceEqualsStartDateForNonRecurring() {

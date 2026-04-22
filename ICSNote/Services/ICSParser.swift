@@ -101,24 +101,24 @@ enum ICSParser {
         // RRULE means this is a series definition; RECURRENCE-ID means this is a
         // modified instance of a series. Either way, the date is unreliable.
         let rruleString = extractProperty("RRULE", from: vevent)
-        let isRecurring = rruleString != nil
-            || extractProperty("RECURRENCE-ID", from: vevent) != nil
+        let hasRecurrenceID = extractProperty("RECURRENCE-ID", from: vevent) != nil
+        let isRecurring = rruleString != nil || hasRecurrenceID
 
         // Best guess at which occurrence the user dragged, used as the date
-        // picker default. Priority:
-        //   1. If startDate is today or later, use it (e.g., Outlook gave us
-        //      a modified instance with the actual date).
-        //   2. Otherwise, if there's an RRULE, advance to the next occurrence.
-        //   3. Otherwise, fall back to startDate.
-        let suggestedOccurrenceDate: Date = {
-            let today = Calendar.current.startOfDay(for: Date())
-            if startDate >= today { return startDate }
-            if let rrule = rruleString,
-               let next = nextOccurrence(from: startDate, rrule: rrule) {
-                return next
-            }
-            return startDate
-        }()
+        // picker default. Semantics:
+        //   • Modified instance (RECURRENCE-ID present): DTSTART IS that
+        //     occurrence's actual date — use it.
+        //   • Pure series definition (RRULE only): DTSTART is the series start,
+        //     which is rarely what the user wants. Default to today.
+        //   • Non-recurring: just use DTSTART.
+        let suggestedOccurrenceDate: Date
+        if hasRecurrenceID {
+            suggestedOccurrenceDate = startDate
+        } else if rruleString != nil {
+            suggestedOccurrenceDate = Date()
+        } else {
+            suggestedOccurrenceDate = startDate
+        }
 
         let organizer = extractOrganizer(from: vevent)
         let attendees = extractAttendees(from: vevent)

@@ -496,10 +496,17 @@ struct HooksTabView: View {
                 ScrollView {
                     VStack(spacing: 6) {
                         ForEach(settings.hooks) { hook in
-                            HookRowView(settings: settings, hook: hook) {
-                                editingHook = hook
-                                isNewHook = false
-                            }
+                            HookRowView(
+                                settings: settings,
+                                hook: hook,
+                                onEdit: {
+                                    editingHook = hook
+                                    isNewHook = false
+                                },
+                                onDuplicate: {
+                                    duplicateHook(hook)
+                                }
+                            )
                         }
                     }
                     .padding(8)
@@ -527,6 +534,29 @@ struct HooksTabView: View {
             )
         }
     }
+
+    /// Create a copy of a hook with a new UUID, "(Copy)" appended to the name,
+    /// and insert it right after the original in the list.
+    private func duplicateHook(_ original: PostSaveHook) {
+        var copy = original
+        // Give it a fresh identity — PostSaveHook.id is a `let`, so we rebuild
+        copy = PostSaveHook(
+            id: UUID(),
+            name: original.name.isEmpty ? "Copy" : "\(original.name) (Copy)",
+            enabled: original.enabled,
+            vaultID: original.vaultID,
+            trigger: original.trigger,
+            action: original.action,
+            timeoutSeconds: original.timeoutSeconds,
+            permissionMode: original.permissionMode,
+            allowedTools: original.allowedTools
+        )
+        if let idx = settings.hooks.firstIndex(where: { $0.id == original.id }) {
+            settings.hooks.insert(copy, at: idx + 1)
+        } else {
+            settings.hooks.append(copy)
+        }
+    }
 }
 
 // MARK: - Hook Row
@@ -535,6 +565,7 @@ struct HookRowView: View {
     @Bindable var settings: AppSettings
     let hook: PostSaveHook
     let onEdit: () -> Void
+    let onDuplicate: () -> Void
 
     var body: some View {
         HStack(spacing: 10) {
@@ -567,6 +598,15 @@ struct HookRowView: View {
             }
 
             Spacer()
+
+            Button {
+                onDuplicate()
+            } label: {
+                Image(systemName: "plus.square.on.square")
+            }
+            .buttonStyle(.plain)
+            .help("Duplicate this hook")
+            .controlSize(.small)
 
             Button("Edit") { onEdit() }
                 .controlSize(.small)

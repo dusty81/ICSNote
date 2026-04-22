@@ -1,6 +1,36 @@
 import Foundation
 import os
 
+/// Tracks live hook processes so the user can cancel them mid-flight.
+actor HookProcessRegistry {
+    static let shared = HookProcessRegistry()
+    private var processes: [UUID: Process] = [:]
+    private var userCancelled: Set<UUID> = []
+
+    func register(_ runID: UUID, process: Process) {
+        processes[runID] = process
+    }
+
+    /// Mark a run as user-cancelled and terminate its process.
+    /// Returns `true` if there was a running process that was actually terminated.
+    @discardableResult
+    func terminate(_ runID: UUID) -> Bool {
+        guard let process = processes[runID], process.isRunning else { return false }
+        userCancelled.insert(runID)
+        process.terminate()
+        return true
+    }
+
+    func wasUserCancelled(_ runID: UUID) -> Bool {
+        userCancelled.contains(runID)
+    }
+
+    func cleanup(_ runID: UUID) {
+        processes.removeValue(forKey: runID)
+        userCancelled.remove(runID)
+    }
+}
+
 /// Fires post-save hooks asynchronously. Never blocks the caller.
 enum HookRunner {
 
@@ -125,6 +155,9 @@ enum HookRunner {
             return result
         }
 
+        // Register with the cancellation registry so the user can stop it
+        await HookProcessRegistry.shared.register(runRecord.id, process: process)
+
         // Enforce the configured timeout. 0 means "no timeout — let it run".
         let timeout = hook.effectiveTimeoutSeconds
         let timeoutTask: Task<Void, Error>?
@@ -157,12 +190,18 @@ enum HookRunner {
         var errText = String(data: errData, encoding: .utf8) ?? ""
 
         let exitCode = process.terminationStatus
-        let wasTerminated = process.terminationReason == .uncaughtSignal && exitCode == 143
+        let wasSignaled = process.terminationReason == .uncaughtSignal && exitCode == 143
+        let wasUserCancelled = await HookProcessRegistry.shared.wasUserCancelled(runRecord.id)
+        await HookProcessRegistry.shared.cleanup(runRecord.id)
         result.finishedAt = Date()
 
-        // Surface timeouts explicitly — exit 143 = SIGTERM from our timeout
-        if wasTerminated && errText.isEmpty {
-            errText = "Timed out after \(Int(timeout))s. Increase timeout in hook settings if the skill needs more time."
+        // Distinguish user cancellation from our timeout — both end with SIGTERM (143)
+        if wasSignaled && errText.isEmpty {
+            if wasUserCancelled {
+                errText = "Cancelled by user."
+            } else {
+                errText = "Timed out after \(Int(timeout))s. Increase timeout in hook settings if the skill needs more time."
+            }
         }
 
         // Cap each stream at 100KB for memory sanity
@@ -172,11 +211,23 @@ enum HookRunner {
         if exitCode == 0 {
             logger.info("Hook \(hook.name, privacy: .public): completed (\(outText.count, privacy: .public) bytes stdout)")
             result.status = .success
+        } else if wasUserCancelled {
+            logger.info("Hook \(hook.name, privacy: .public): cancelled by user")
+            result.status = .cancelled
         } else {
             logger.error("Hook \(hook.name, privacy: .public): exit \(exitCode, privacy: .public) \(errText, privacy: .public)")
             result.status = .failure(exitCode: exitCode)
         }
         return result
+    }
+
+    /// Cancel a running hook by its run ID. Safe to call when the run is
+    /// already finished — will be a no-op.
+    static func cancel(runID: UUID) async {
+        let terminated = await HookProcessRegistry.shared.terminate(runID)
+        if terminated {
+            logger.info("Cancelled hook run \(runID.uuidString, privacy: .public)")
+        }
     }
 
     private static func truncate(_ text: String, limit: Int) -> String {

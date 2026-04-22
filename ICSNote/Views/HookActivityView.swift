@@ -61,7 +61,7 @@ struct HookActivityView: View {
         ScrollView {
             LazyVStack(spacing: 4) {
                 ForEach(viewModel.hookRuns) { run in
-                    HookRunRow(run: run)
+                    HookRunRow(run: run, onCancel: { viewModel.cancelHookRun(run) })
                 }
             }
             .padding(12)
@@ -73,6 +73,7 @@ struct HookActivityView: View {
 
 private struct HookRunRow: View {
     let run: HookRun
+    var onCancel: (() -> Void)? = nil
     @State private var expanded = false
     @State private var tab: DetailTab = .stdout
 
@@ -101,12 +102,25 @@ private struct HookRunRow: View {
                         if case .failure(let exitCode) = run.status {
                             Text("·")
                             Text("exit \(exitCode)").foregroundStyle(.red)
+                        } else if case .cancelled = run.status {
+                            Text("·")
+                            Text("cancelled").foregroundStyle(.gray)
                         }
                     }
                     .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()
-                if run.isComplete {
+                if !run.isComplete {
+                    Button {
+                        onCancel?()
+                    } label: {
+                        Image(systemName: "stop.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.red)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Cancel this hook")
+                } else {
                     Button {
                         withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
                     } label: {
@@ -193,6 +207,8 @@ private struct HookRunRow: View {
             return AnyShapeStyle(Color.red.opacity(0.08))
         case .skipped:
             return AnyShapeStyle(Color.orange.opacity(0.08))
+        case .cancelled:
+            return AnyShapeStyle(Color.gray.opacity(0.1))
         case .success, .running:
             return AnyShapeStyle(.quaternary.opacity(0.5))
         }
@@ -209,6 +225,8 @@ private struct HookRunRow: View {
             Image(systemName: "xmark.circle.fill").foregroundStyle(.red)
         case .skipped:
             Image(systemName: "minus.circle.fill").foregroundStyle(.orange)
+        case .cancelled:
+            Image(systemName: "stop.circle.fill").foregroundStyle(.gray)
         }
     }
 

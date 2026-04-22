@@ -77,6 +77,7 @@ struct HookRun: Identifiable, Equatable, Sendable {
         case success
         case failure(exitCode: Int32)
         case skipped(reason: String)   // e.g., claude binary missing
+        case cancelled                 // user cancelled via stop button
     }
 
     let id: UUID
