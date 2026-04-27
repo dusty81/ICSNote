@@ -1,0 +1,68 @@
+From: Alice Example <alice@example.com>
+To: Team <team@example.com>
+Subject: Meeting materials
+Date: Fri, 17 Apr 2026 13:36:16 +0000
+Message-ID: <test-msg-003@example.com>
+Content-Type: multipart/mixed;
+	boundary="_006_outerboundary"
+MIME-Version: 1.0
+
+--_006_outerboundary
+Content-Type: multipart/alternative;
+	boundary="_000_innerboundary"
+
+--_000_innerboundary
+Content-Type: text/plain; charset="us-ascii"
+
+Please find the meeting materials attached.
+
+Thanks,
+Alice
+--_000_innerboundary--
+
+--_006_outerboundary
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document;
+	name="Agenda.docx"
+Content-Description: Agenda.docx
+Content-Disposition: attachment; filename="Agenda.docx"; size=42
+Content-ID: <attachment1@example>
+Content-Transfer-Encoding: base64
+
+ZmFrZSBjb250ZW50IDEK
+--_006_outerboundary
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document;
+	name="Notes.docx"
+Content-Description: Notes.docx
+Content-Disposition: attachment; filename="Notes.docx"; size=42
+Content-ID: <attachment2@example>
+Content-Transfer-Encoding: base64
+
+ZmFrZSBjb250ZW50IDIK
+--_006_outerboundary
+Content-Type: application/pdf;
+	name="Presentation.pdf"
+Content-Description: Presentation.pdf
+Content-Disposition: attachment; filename="Presentation.pdf"; size=42
+Content-ID: <attachment3@example>
+Content-Transfer-Encoding: base64
+
+ZmFrZSBwZGYgY29udGVudAo=
+--_006_outerboundary
+Content-Type: application/msword;
+	name="Cover Letter.doc"
+Content-Description: Cover Letter.doc
+Content-Disposition: attachment; filename="Cover Letter.doc"; size=42
+Content-ID: <attachment4@example>
+Content-Transfer-Encoding: base64
+
+ZmFrZSBkb2MgY29udGVudAo=
+--_006_outerboundary
+Content-Type: application/vnd.openxmlformats-officedocument.wordprocessingml.document;
+	name="Standards.docx"
+Content-Description: Standards.docx
+Content-Disposition: attachment; filename="Standards.docx"; size=42
+Content-ID: <attachment5@example>
+Content-Transfer-Encoding: base64
+
+ZmFrZSBjb250ZW50IDUK
+--_006_outerboundary--

@@ -6,9 +6,9 @@ final class ICSParserTests: XCTestCase {
     // MARK: - Line Unfolding
 
     func testUnfoldsContinuationLines() throws {
-        let input = "ATTENDEE;CN=Robert D. \n Example:mailto:RExample@example.com"
+        let input = "ATTENDEE;CN=Bob T. \n Example:mailto:bob@example.com"
         let unfolded = ICSParser.unfoldLines(input)
-        XCTAssertEqual(unfolded, "ATTENDEE;CN=Robert D. Example:mailto:RExample@example.com")
+        XCTAssertEqual(unfolded, "ATTENDEE;CN=Bob T. Example:mailto:bob@example.com")
     }
 
     func testUnfoldsMultipleContinuationLines() throws {
@@ -23,7 +23,7 @@ final class ICSParserTests: XCTestCase {
         let ics = try loadFixture("simple-meeting")
         let event = try ICSParser.parse(ics)
 
-        XCTAssertEqual(event.title, "1:1 - Dusty / Landon")
+        XCTAssertEqual(event.title, "1:1 - Alice / David")
         XCTAssertEqual(event.organizer?.name, "Jane Smith")
         XCTAssertEqual(event.organizer?.email, "jane@example.com")
         XCTAssertEqual(event.description, "Quarterly review of project status.")
@@ -56,30 +56,30 @@ final class ICSParserTests: XCTestCase {
 
         XCTAssertEqual(event.attendees.count, 4)
 
-        let alec = event.attendees.first { $0.name == "Alice Example" }
-        XCTAssertNotNil(alec)
-        XCTAssertEqual(alec?.email, "aexample@example.com")
-        XCTAssertEqual(alec?.status, .accepted)
+        let alice = event.attendees.first { $0.name == "Alice Example" }
+        XCTAssertNotNil(alice)
+        XCTAssertEqual(alice?.email, "alice@example.com")
+        XCTAssertEqual(alice?.status, .accepted)
 
-        let robert = event.attendees.first { $0.name == "Robert D. Example" }
-        XCTAssertNotNil(robert)
-        XCTAssertEqual(robert?.status, .declined)
+        let bob = event.attendees.first { $0.name == "Bob T. Example" }
+        XCTAssertNotNil(bob)
+        XCTAssertEqual(bob?.status, .declined)
 
-        let neal = event.attendees.first { $0.name == "Neal Example" }
-        XCTAssertNotNil(neal)
-        XCTAssertEqual(neal?.status, .tentative)
+        let carol = event.attendees.first { $0.name == "Carol Example" }
+        XCTAssertNotNil(carol)
+        XCTAssertEqual(carol?.status, .tentative)
 
-        let landon = event.attendees.first { $0.name == "David Example" }
-        XCTAssertNotNil(landon)
-        XCTAssertEqual(landon?.status, .needsAction)
+        let david = event.attendees.first { $0.name == "David Example" }
+        XCTAssertNotNil(david)
+        XCTAssertEqual(david?.status, .needsAction)
     }
 
     func testParsesOrganizer() throws {
         let ics = try loadFixture("recurring-meeting")
         let event = try ICSParser.parse(ics)
 
-        XCTAssertEqual(event.organizer?.name, "Alex User")
-        XCTAssertEqual(event.organizer?.email, "DUser@example.com")
+        XCTAssertEqual(event.organizer?.name, "Eve Example")
+        XCTAssertEqual(event.organizer?.email, "eve@example.com")
     }
 
     func testParsesCategories() throws {
@@ -340,27 +340,16 @@ final class ICSParserTests: XCTestCase {
         XCTAssertEqual(AttendeeStatus.needsAction.emoji, "➖")
     }
 
-    // MARK: - Real-World Recurring Fixtures
+    // MARK: - Outlook Recurring Series with Modified Instance
 
-    func testAlecDustyRecurringIsMarkedRecurring() throws {
-        let ics = try loadFixture("1-1-alec-dusty")
+    func testRecurringSeriesWithModifiedInstanceIsMarkedRecurring() throws {
+        // Outlook frequently includes a modified-occurrence VEVENT alongside the
+        // series-definition VEVENT. The selected VEVENT (most recent past) has
+        // RECURRENCE-ID but no RRULE — must still be flagged recurring.
+        let ics = try loadFixture("recurring-with-modified-instance")
         let event = try ICSParser.parse(ics)
         XCTAssertTrue(event.isRecurring, "Modified occurrence with RECURRENCE-ID should be marked recurring")
-        XCTAssertEqual(event.title, "1:1 - Alec / Dusty")
-    }
-
-    func testNealDustyRecurringIsMarkedRecurring() throws {
-        let ics = try loadFixture("1-1-neal-dusty")
-        let event = try ICSParser.parse(ics)
-        XCTAssertTrue(event.isRecurring, "Modified occurrence with RECURRENCE-ID should be marked recurring")
-        XCTAssertEqual(event.title, "1:1 - Neal / Dusty")
-    }
-
-    func testBiWeeklyHuddleRecurringIsMarkedRecurring() throws {
-        let ics = try loadFixture("biweekly-infosec-huddle")
-        let event = try ICSParser.parse(ics)
-        XCTAssertTrue(event.isRecurring, "Modified occurrence with RECURRENCE-ID should be marked recurring")
-        XCTAssertEqual(event.title, "Biweekly Team Huddle")
+        XCTAssertEqual(event.title, "Weekly One on One")
     }
 
     // MARK: - Helpers

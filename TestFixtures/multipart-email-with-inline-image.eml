@@ -1,0 +1,43 @@
+From: Alice Example <alice@example.com>
+To: Bob Example <bob@example.com>, Carol Example
+	<carol@example.com>
+Subject: Project status update
+Thread-Topic: Project status update
+Date: Fri, 3 Apr 2026 19:55:12 +0000
+Message-ID: <test-msg-001@example.com>
+Content-Type: multipart/related;
+	boundary="_004_outerboundary";
+	type="multipart/alternative"
+MIME-Version: 1.0
+
+--_004_outerboundary
+Content-Type: multipart/alternative;
+	boundary="_000_innerboundary"
+
+--_000_innerboundary
+Content-Type: text/plain; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+Hi team,
+
+Quick status update on the project. Things are progressing well.
+
+Thanks,
+Alice Example
+--_000_innerboundary
+Content-Type: text/html; charset="us-ascii"
+Content-Transfer-Encoding: 7bit
+
+<html><body><p>Hi team,</p><p>Quick status update on the project.</p></body></html>
+--_000_innerboundary--
+
+--_004_outerboundary
+Content-Type: image/png; name="image001.png"
+Content-Description: image001.png
+Content-Disposition: inline; filename="image001.png"; size=42
+Content-ID: <image001@example>
+Content-Transfer-Encoding: base64
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8A
+AAAASUVORK5CYII=
+--_004_outerboundary--

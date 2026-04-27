@@ -7,7 +7,7 @@ ORGANIZER;CN=Jane Smith:mailto:jane@example.com
 ATTENDEE;ROLE=REQ-PARTICIPANT;PARTSTAT=ACCEPTED;CN=Bob Jones:mailto:bob@example.com
 DESCRIPTION:Quarterly review of project status.
 UID:test-uid-002
-SUMMARY:1:1 - Dusty / Landon
+SUMMARY:1:1 - Alice / David
 DTSTART:20260415T140000Z
 DTEND:20260415T143000Z
 STATUS:CONFIRMED

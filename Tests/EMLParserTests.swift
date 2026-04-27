@@ -6,38 +6,38 @@ final class EMLParserTests: XCTestCase {
     // MARK: - Header Parsing
 
     func testParsesBasicHeaders() throws {
-        let eml = try loadFixture("governance-email")
+        let eml = try loadFixture("multipart-email-with-inline-image")
         let email = try EMLParser.parse(eml)
 
         XCTAssertEqual(email.subject, "Project status update")
-        XCTAssertEqual(email.from.name, "Eve Example")
-        XCTAssertEqual(email.from.email, "TExample@example.com")
+        XCTAssertEqual(email.from.name, "Alice Example")
+        XCTAssertEqual(email.from.email, "alice@example.com")
     }
 
     func testParsesMultipleRecipients() throws {
-        let eml = try loadFixture("governance-email")
+        let eml = try loadFixture("multipart-email-with-inline-image")
         let email = try EMLParser.parse(eml)
 
         XCTAssertEqual(email.to.count, 2)
         XCTAssertTrue(email.to.contains { $0.name == "Bob Example" })
-        XCTAssertTrue(email.to.contains { $0.name == "Alex User" })
+        XCTAssertTrue(email.to.contains { $0.name == "Carol Example" })
     }
 
     func testParsesSingleRecipient() throws {
-        let eml = try loadFixture("vendor-spend-email")
+        let eml = try loadFixture("email-with-attachment")
         let email = try EMLParser.parse(eml)
 
         XCTAssertEqual(email.to.count, 1)
-        XCTAssertEqual(email.to.first?.name, "Alex User")
-        XCTAssertEqual(email.to.first?.email, "DUser@example.com")
+        XCTAssertEqual(email.to.first?.name, "Bob Example")
+        XCTAssertEqual(email.to.first?.email, "bob@example.com")
     }
 
     // MARK: - Address Parsing
 
     func testParsesNameWithAngleBrackets() {
-        let contact = EMLParser.parseAddress("Eve Example <TExample@example.com>")
-        XCTAssertEqual(contact.name, "Eve Example")
-        XCTAssertEqual(contact.email, "TExample@example.com")
+        let contact = EMLParser.parseAddress("Alice Example <alice@example.com>")
+        XCTAssertEqual(contact.name, "Alice Example")
+        XCTAssertEqual(contact.email, "alice@example.com")
     }
 
     func testParsesQuotedName() {
@@ -78,19 +78,19 @@ final class EMLParserTests: XCTestCase {
     // MARK: - Body Extraction
 
     func testExtractsPlainTextBody() throws {
-        let eml = try loadFixture("governance-email")
+        let eml = try loadFixture("multipart-email-with-inline-image")
         let email = try EMLParser.parse(eml)
 
-        XCTAssertTrue(email.body.contains("Hi guys"))
-        XCTAssertTrue(email.body.contains("AI agent governance"))
-        XCTAssertTrue(email.body.contains("Eve Example"))
+        XCTAssertTrue(email.body.contains("Hi team"))
+        XCTAssertTrue(email.body.contains("status update"))
+        XCTAssertTrue(email.body.contains("Alice Example"))
     }
 
-    func testExtractsVendorSpendBody() throws {
-        let eml = try loadFixture("vendor-spend-email")
+    func testExtractsBodyFromEmailWithAttachment() throws {
+        let eml = try loadFixture("email-with-attachment")
         let email = try EMLParser.parse(eml)
 
-        XCTAssertTrue(email.body.contains("vendor spend for 2025"))
+        XCTAssertTrue(email.body.contains("quarterly report"))
         XCTAssertTrue(email.body.contains("Alice Example"))
     }
 
@@ -112,48 +112,51 @@ final class EMLParserTests: XCTestCase {
 
     // MARK: - Attachment Extraction
 
-    func testExtractsAttachmentFromVendorSpend() throws {
-        let eml = try loadFixture("vendor-spend-email")
+    func testExtractsAttachmentFromEmail() throws {
+        let eml = try loadFixture("email-with-attachment")
         let email = try EMLParser.parse(eml)
 
         let realAttachments = email.attachments.filter { !$0.isInline }
         XCTAssertEqual(realAttachments.count, 1)
-        XCTAssertEqual(realAttachments.first?.filename, "Quarterly report.xlsx")
+        XCTAssertEqual(realAttachments.first?.filename, "Quarterly Report.xlsx")
         XCTAssertTrue(realAttachments.first?.data.count ?? 0 > 0, "Attachment data should be non-empty")
     }
 
     func testMarksInlineImagesAsInline() throws {
-        let eml = try loadFixture("governance-email")
+        let eml = try loadFixture("multipart-email-with-inline-image")
         let email = try EMLParser.parse(eml)
 
         let inlineImages = email.attachments.filter { $0.isInline }
-        XCTAssertTrue(inlineImages.count >= 1, "Should have at least one inline image (logo)")
+        XCTAssertTrue(inlineImages.count >= 1, "Should have at least one inline image (signature logo)")
         XCTAssertEqual(inlineImages.first?.filename, "image001.png")
     }
 
-    func testGovernanceEmailHasNoRealAttachments() throws {
-        let eml = try loadFixture("governance-email")
+    func testEmailWithOnlyInlineImageHasNoRealAttachments() throws {
+        let eml = try loadFixture("multipart-email-with-inline-image")
         let email = try EMLParser.parse(eml)
 
         let realAttachments = email.attachments.filter { !$0.isInline }
         XCTAssertEqual(realAttachments.count, 0)
     }
 
-    // MARK: - Real Outlook Email with Multiple Attachments
+    // MARK: - Multi-Attachment Outlook Edge Case (Content-ID + Content-Disposition)
 
-    func testBoardMeetingExtractsAllRealAttachments() throws {
-        // Outlook email with 5 attachments — all have both Content-Disposition: attachment
-        // AND Content-ID. Previously all were mis-classified as inline and dropped.
-        let eml = try loadFixture("board-meeting-with-attachments")
+    func testEmailWithMultipleAttachmentsExtractsAllOfThem() throws {
+        // Each attachment has both Content-Disposition: attachment AND a Content-ID
+        // (the way Outlook serializes them). Previously the Content-ID alone made
+        // our parser mis-classify all 5 as inline and drop them.
+        let eml = try loadFixture("email-with-multiple-attachments")
         let email = try EMLParser.parse(eml)
 
         let real = email.attachments.filter { !$0.isInline }
-        XCTAssertGreaterThanOrEqual(real.count, 5, "Should extract all 5 Outlook attachments despite Content-ID presence")
+        XCTAssertGreaterThanOrEqual(real.count, 5, "Should extract all 5 attachments despite Content-ID presence")
 
         let names = Set(real.map { $0.filename })
-        XCTAssertTrue(names.contains { $0.contains("Example Presentation") && $0.hasSuffix(".pdf") })
-        XCTAssertTrue(names.contains { $0.contains("Committee Notes") })
-        XCTAssertTrue(names.contains("Professional Standards.docx"))
+        XCTAssertTrue(names.contains("Agenda.docx"))
+        XCTAssertTrue(names.contains("Notes.docx"))
+        XCTAssertTrue(names.contains("Presentation.pdf"))
+        XCTAssertTrue(names.contains("Cover Letter.doc"))
+        XCTAssertTrue(names.contains("Standards.docx"))
     }
 
     func testAttachmentWithContentIDAndDispositionIsNotInline() {
@@ -200,7 +203,7 @@ final class EMLParserTests: XCTestCase {
     // MARK: - Reply Prefix Stripping
 
     func testStripsREPrefix() {
-        XCTAssertEqual(EmailMessage.stripReplyPrefix("RE: Quarterly report for 2025"), "Quarterly report for 2025")
+        XCTAssertEqual(EmailMessage.stripReplyPrefix("RE: Quarterly report"), "Quarterly report")
     }
 
     func testStripsFWPrefix() {

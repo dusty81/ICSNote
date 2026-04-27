@@ -10,14 +10,14 @@ final class MarkdownGeneratorTests: XCTestCase {
         let start = makeDate(year: 2026, month: 2, day: 19, hour: 10, minute: 0)
         let end = makeDate(year: 2026, month: 2, day: 19, hour: 10, minute: 30)
         sampleEvent = CalendarEvent(
-            title: "Project Alpha (PA) Strategy Meeting",
+            title: "Weekly Planning Meeting",
             startDate: start, endDate: end,
-            organizer: Organizer(name: "Alex User", email: "DUser@example.com"),
+            organizer: Organizer(name: "Eve Example", email: "eve@example.com"),
             attendees: [
-                Attendee(name: "Alice Example", email: "aexample@example.com", status: .accepted),
-                Attendee(name: "Robert D. Example", email: "RExample@example.com", status: .declined),
-                Attendee(name: "Neal Example", email: "HExample@example.com", status: .tentative),
-                Attendee(name: "David Example", email: "aexample@example.com", status: .needsAction),
+                Attendee(name: "Alice Example", email: "alice@example.com", status: .accepted),
+                Attendee(name: "Bob T. Example", email: "bob@example.com", status: .declined),
+                Attendee(name: "Carol Example", email: "carol@example.com", status: .tentative),
+                Attendee(name: "David Example", email: "david@example.com", status: .needsAction),
             ],
             description: "Session to discuss the high level tasks.",
             location: "https://example.zoom.us/j/123456",
@@ -29,9 +29,9 @@ final class MarkdownGeneratorTests: XCTestCase {
     func testGeneratesFrontmatter() {
         let markdown = MarkdownGenerator.generate(event: sampleEvent)
         XCTAssertTrue(markdown.hasPrefix("---\n"))
-        XCTAssertTrue(markdown.contains("title: \"Project Alpha (PA) Strategy Meeting\""))
+        XCTAssertTrue(markdown.contains("title: \"Weekly Planning Meeting\""))
         XCTAssertTrue(markdown.contains("date: 2026-02-19"))
-        XCTAssertTrue(markdown.contains("organizer: \"Alex User\""))
+        XCTAssertTrue(markdown.contains("organizer: \"Eve Example\""))
         XCTAssertTrue(markdown.contains("status: \"Confirmed\""))
         XCTAssertTrue(markdown.contains("type: meeting"))
     }
@@ -40,7 +40,7 @@ final class MarkdownGeneratorTests: XCTestCase {
         let markdown = MarkdownGenerator.generate(event: sampleEvent)
         XCTAssertTrue(markdown.contains("  - name: \"Alice Example\""))
         XCTAssertTrue(markdown.contains("    status: accepted"))
-        XCTAssertTrue(markdown.contains("  - name: \"Robert D. Example\""))
+        XCTAssertTrue(markdown.contains("  - name: \"Bob T. Example\""))
         XCTAssertTrue(markdown.contains("    status: declined"))
     }
 
@@ -52,18 +52,18 @@ final class MarkdownGeneratorTests: XCTestCase {
     func testGeneratesMetadataTable() {
         let markdown = MarkdownGenerator.generate(event: sampleEvent)
         XCTAssertTrue(markdown.contains("## Meeting Details"))
-        XCTAssertTrue(markdown.contains("| **Subject** | Project Alpha (PA) Strategy Meeting |"))
-        XCTAssertTrue(markdown.contains("| **Organizer** | Alex User (DUser@example.com) |"))
+        XCTAssertTrue(markdown.contains("| **Subject** | Weekly Planning Meeting |"))
+        XCTAssertTrue(markdown.contains("| **Organizer** | Eve Example (eve@example.com) |"))
         XCTAssertTrue(markdown.contains("| **Status** | Confirmed |"))
     }
 
     func testGeneratesAttendeesWithEmoji() {
         let markdown = MarkdownGenerator.generate(event: sampleEvent)
         XCTAssertTrue(markdown.contains("## Attendees"))
-        XCTAssertTrue(markdown.contains("- ✅ Alice Example (aexample@example.com)"))
-        XCTAssertTrue(markdown.contains("- ❌ Robert D. Example (RExample@example.com)"))
-        XCTAssertTrue(markdown.contains("- ❓ Neal Example (HExample@example.com)"))
-        XCTAssertTrue(markdown.contains("- ➖ David Example (aexample@example.com)"))
+        XCTAssertTrue(markdown.contains("- ✅ Alice Example (alice@example.com)"))
+        XCTAssertTrue(markdown.contains("- ❌ Bob T. Example (bob@example.com)"))
+        XCTAssertTrue(markdown.contains("- ❓ Carol Example (carol@example.com)"))
+        XCTAssertTrue(markdown.contains("- ➖ David Example (david@example.com)"))
     }
 
     func testGeneratesDescriptionSection() {
@@ -87,7 +87,7 @@ final class MarkdownGeneratorTests: XCTestCase {
     func testStripsZoomInfo() {
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
-            description: "Agenda items here.\n\nHi there,\nAlex User is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting\nhttps://example.zoom.us/j/123\nMeeting ID: 123 456\nPasscode: abc\nDial:\n+1 301 715 8592 US\nInternational numbers\n\nFooter text.",
+            description: "Agenda items here.\n\nHi there,\nEve Example is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting\nhttps://example.zoom.us/j/123\nMeeting ID: 123 456\nPasscode: abc\nDial:\n+1 301 715 8592 US\nInternational numbers\n\nFooter text.",
             location: "", categories: [], status: ""
         )
         let markdown = MarkdownGenerator.generate(event: event, stripZoom: true)
@@ -101,7 +101,7 @@ final class MarkdownGeneratorTests: XCTestCase {
         // Outlook wraps URLs in SafeLinks and uses H.323/SIP instead of phone dial-in
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
-            description: "[https://us06st2.zoom.us/static/6.3.54678/image/new/ZoomLogo_110_25.png]<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fzoom.com>\nHi there,\nDavid Example is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.zoom.us%2Fj%2F123>\nMeeting URL:\nhttps://example.zoom.us/j/123\nMeeting ID:\n860 7531 7442\nPasscode:\nabc123\nJoin from an H.323/SIP room system\nH.323:\n144.195.19.161 (US West)\nSIP:\n86075317442@zoomcrc.com\nPasscode:\n7321250",
+            description: "[https://us06st2.zoom.us/static/6.3.54678/image/new/ZoomLogo_110_25.png]<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fzoom.com>\nHi there,\nEve Example is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fexample.zoom.us%2Fj%2F123>\nMeeting URL:\nhttps://example.zoom.us/j/123\nMeeting ID:\n860 7531 7442\nPasscode:\nabc123\nJoin from an H.323/SIP room system\nH.323:\n144.195.19.161 (US West)\nSIP:\n86075317442@zoomcrc.com\nPasscode:\n7321250",
             location: "", categories: [], status: ""
         )
         let markdown = MarkdownGenerator.generate(event: event, stripZoom: true)
@@ -126,7 +126,7 @@ final class MarkdownGeneratorTests: XCTestCase {
         // When H.323/SIP block comes AFTER "International numbers", both must be stripped
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],
-            description: "[https://us06st2.zoom.us/static/6.3.55369/image/new/ZoomLogo_110_25.png]<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fzoom.com>\nHi there,\nSarah is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting<safelink>\nMeeting URL:\nhttps://example.zoom.us/j/123\nMeeting ID:\n880 0908 6727\nDial:\n+1 651 372 8299 US\nMeeting ID:\n880 0908 6727\nInternational numbers<safelink>\nJoin from an H.323/SIP room system\nH.323:\n144.195.19.161 (US West)\n206.247.11.121 (US East)\nMeeting ID:\n880 0908 6727\nSIP:\n88009086727@zoomcrc.com",
+            description: "[https://us06st2.zoom.us/static/6.3.55369/image/new/ZoomLogo_110_25.png]<https://nam11.safelinks.protection.outlook.com/?url=https%3A%2F%2Fzoom.com>\nHi there,\nEve Example is inviting you to a scheduled Zoom meeting.\nJoin Zoom Meeting<safelink>\nMeeting URL:\nhttps://example.zoom.us/j/123\nMeeting ID:\n880 0908 6727\nDial:\n+1 651 372 8299 US\nMeeting ID:\n880 0908 6727\nInternational numbers<safelink>\nJoin from an H.323/SIP room system\nH.323:\n144.195.19.161 (US West)\n206.247.11.121 (US East)\nMeeting ID:\n880 0908 6727\nSIP:\n88009086727@zoomcrc.com",
             location: "", categories: [], status: ""
         )
         let markdown = MarkdownGenerator.generate(event: event, stripZoom: true)
@@ -168,7 +168,7 @@ final class MarkdownGeneratorTests: XCTestCase {
     }
 
     func testStripsTeamsWithBlankLinesBetweenUnderscoresAndHeader() {
-        // External Org-style Teams invite: blank lines between underscore delimiter and
+        // External-org Teams invite: blank lines between underscore delimiter and
         // "Microsoft Teams meeting" header. Previously the \n anchor made the regex fail.
         let event = CalendarEvent(
             title: "Test", startDate: Date(), endDate: Date(), organizer: nil, attendees: [],

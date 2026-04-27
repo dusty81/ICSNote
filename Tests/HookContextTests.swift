@@ -35,8 +35,8 @@ final class HookContextTests: XCTestCase {
         let vault = VaultConfig(name: "Workspace", path: "/Users/u/Obsidian/Workspace", enabled: true)
         let email = EmailMessage(
             subject: "RE: Quarterly report",
-            from: EmailContact(name: "Alice", email: "j@x.com"),
-            to: [EmailContact(name: "Dusty", email: "d@x.com")],
+            from: EmailContact(name: "Alice", email: "alice@example.com"),
+            to: [EmailContact(name: "Bob", email: "bob@example.com")],
             cc: [],
             date: Date(timeIntervalSince1970: 1776445200), // some ts
             body: "body",
@@ -80,7 +80,7 @@ final class HookContextTests: XCTestCase {
     func testSubstitutesEmailSpecifics() {
         let ctx = sampleEmailContext()
         XCTAssertTrue(ctx.substitute(in: "{{from}}").contains("Alice"))
-        XCTAssertTrue(ctx.substitute(in: "{{recipients}}").contains("Dusty"))
+        XCTAssertTrue(ctx.substitute(in: "{{recipients}}").contains("Bob"))
         XCTAssertTrue(ctx.substitute(in: "{{attachments}}").contains("Quarterly report.xlsx"))
     }
 

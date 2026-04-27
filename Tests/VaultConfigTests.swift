@@ -52,10 +52,10 @@ final class VaultConfigTests: XCTestCase {
         // Two paths that happen to hash to the same color should NOT necessarily
         // hash to the same shape (shape uses higher-order bits of the hash).
         let paths = [
-            "/Users/u/Obsidian/Workspace",
-            "/Users/u/Obsidian/Consulting",
-            "/Users/u/Obsidian/Personal",
-            "/Users/u/Obsidian/Other Organizations",
+            "/Users/u/Obsidian/VaultA",
+            "/Users/u/Obsidian/VaultB",
+            "/Users/u/Obsidian/VaultC",
+            "/Users/u/Obsidian/VaultD",
         ]
         let pairs = paths.map { path -> (Color, VaultIndicatorShape) in
             let v = VaultConfig(name: "x", path: path)
@@ -68,10 +68,10 @@ final class VaultConfigTests: XCTestCase {
 
     func testDifferentPathsGetDifferentColors() {
         let paths = [
-            "/Users/u/Obsidian/Workspace",
-            "/Users/u/Obsidian/Personal",
+            "/Users/u/Obsidian/VaultA",
+            "/Users/u/Obsidian/VaultB",
             "/Users/u/Obsidian/VaultC",
-            "/Users/u/Obsidian/Consulting",
+            "/Users/u/Obsidian/VaultD",
         ]
         let colors = Set(paths.map { VaultConfig(name: "x", path: $0).color.description })
         // Not guaranteed to be fully distinct with only 12 palette colors and 4 inputs,
