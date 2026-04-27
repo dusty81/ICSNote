@@ -133,12 +133,12 @@ date: 2026-04-17
 time: "8:36 AM (CDT)"
 from: "Alice Example"
 to:
-  - "Board members"
+  - "Team"
 subject: "Quarterly Review"
 attachments:
-  - "Example Org Board of Directors Agenda April 2026.doc"
-  - "Example Org Board of Directors Agenda April 2026.pdf"
-  - "Example Presentation compressed.pdf"
+  - "Quarterly Review Agenda.doc"
+  - "Quarterly Review Agenda.pdf"
+  - "Supporting Materials.pdf"
 type: email
 ---
 
@@ -146,8 +146,8 @@ type: email
 
 | Field | Value |
 |-------|-------|
-| **From** | Alice Example (aexample@example.com) |
-| **To** | Board members |
+| **From** | Alice Example (alice@example.com) |
+| **To** | Team |
 | **Date** | Friday, April 17, 2026 |
 | **Subject** | Quarterly Review |
 
@@ -157,9 +157,9 @@ Please find the attached agenda and supporting materials...
 
 ## Attachments
 
-- [[Example Org Board of Directors Agenda April 2026.doc]]
-- ![[Example Org Board of Directors Agenda April 2026.pdf]]
-- ![[Example Presentation compressed.pdf]]
+- [[Quarterly Review Agenda.doc]]
+- ![[Quarterly Review Agenda.pdf]]
+- ![[Supporting Materials.pdf]]
 
 ## Notes
 ```

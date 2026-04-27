@@ -84,7 +84,7 @@ Outlook wraps URLs in `nam11.safelinks.protection.outlook.com` SafeLinks. Zoom b
 
 Teams stripping covers several formats:
 - Standard internal Teams (`Join Microsoft Teams Meeting` … `Learn more about Teams`)
-- External-org underscore-delimited blocks (`_{40,}\s+Microsoft Teams meeting.*?_{40,}`) — `\s+` (not `\n`) so blank lines between the delimiter and header are handled (External Org-style invites)
+- External-org underscore-delimited blocks (`_{40,}\s+Microsoft Teams meeting.*?_{40,}`) — `\s+` (not `\n`) so blank lines between the delimiter and header are handled
 - Fallback end markers: `Reset PIN`, `Reset dial-in PIN`, `Meeting options`, `Learn More`
 - Outer `_{40,}` skips the inner `_{32,}` separator that some templates use within the block
 
