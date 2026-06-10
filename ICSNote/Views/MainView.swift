@@ -65,6 +65,14 @@ struct MainView: View {
             }
             ToolbarItem(placement: .automatic) {
                 Button {
+                    openWindow(id: "noteHistory")
+                } label: {
+                    Image(systemName: "clock")
+                }
+                .help("Note History (\(viewModel.allHistory.count))")
+            }
+            ToolbarItem(placement: .automatic) {
+                Button {
                     openSettings()
                 } label: {
                     Image(systemName: "gear")
