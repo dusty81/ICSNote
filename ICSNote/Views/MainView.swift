@@ -427,9 +427,9 @@ struct MainView: View {
     }
 
     private func contextMenuHooks(for conversion: RecentConversion) -> [PostSaveHook] {
-        guard let vaultID = conversion.vaultID else { return [] }
-        return viewModel.settings.hooks.filter {
-            $0.showInContextMenu && $0.matches(vaultID: vaultID, noteType: conversion.noteType)
+        viewModel.settings.hooks.filter {
+            $0.showInContextMenu && $0.enabled &&
+            ($0.trigger == .any || $0.trigger == conversion.noteType)
         }
     }
 
