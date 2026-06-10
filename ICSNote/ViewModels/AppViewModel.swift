@@ -642,6 +642,7 @@ final class AppViewModel {
             hooks: [hook],
             context: context,
             customSkillPaths: settings.customSkillPaths,
+            bypassVaultFilter: true,
             onStart: { [weak self] run in
                 guard let self else { return }
                 self.hookRuns.insert(run, at: 0)
