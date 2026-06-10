@@ -630,6 +630,34 @@ final class AppViewModel {
         Task { await HookRunner.cancel(runID: run.id) }
     }
 
+    /// Fire a single hook against an existing note from the context menu.
+    /// Builds a minimal `HookContext` from the conversion record — rich metadata
+    /// (organizer, attendees, etc.) is not available after save, so those
+    /// template variables will be empty strings.
+    func runHook(_ hook: PostSaveHook, for conversion: RecentConversion) {
+        guard let vaultID = conversion.vaultID,
+              let vault = settings.vault(id: vaultID) else { return }
+        let context = HookContext.fromConversion(conversion, vault: vault)
+        HookRunner.fire(
+            hooks: [hook],
+            context: context,
+            customSkillPaths: settings.customSkillPaths,
+            onStart: { [weak self] run in
+                guard let self else { return }
+                self.hookRuns.insert(run, at: 0)
+                if self.hookRuns.count > Self.maxHookRuns {
+                    self.hookRuns = Array(self.hookRuns.prefix(Self.maxHookRuns))
+                }
+            },
+            onFinish: { [weak self] run in
+                guard let self else { return }
+                if let idx = self.hookRuns.firstIndex(where: { $0.id == run.id }) {
+                    self.hookRuns[idx] = run
+                }
+            }
+        )
+    }
+
     // MARK: - Utilities
 
     func revealInFinder(_ conversion: RecentConversion) {
