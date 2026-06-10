@@ -122,6 +122,8 @@ struct PostSaveHook: Codable, Identifiable, Equatable {
     /// e.g., `"Read Edit Write mcp__outlook__search mcp__slack__*"`.
     /// Maps to Claude's `--allowedTools` flag. Additive to the permission mode.
     var allowedTools: String?
+    /// When true, this hook appears in the right-click context menu on saved notes.
+    var showInContextMenu: Bool
 
     init(
         id: UUID = UUID(),
@@ -132,7 +134,8 @@ struct PostSaveHook: Codable, Identifiable, Equatable {
         action: PostSaveAction = .claudeSkill(skillName: "", promptTemplate: ""),
         timeoutSeconds: Double? = nil,
         permissionMode: ClaudePermissionMode? = nil,
-        allowedTools: String? = nil
+        allowedTools: String? = nil,
+        showInContextMenu: Bool = false
     ) {
         self.id = id
         self.name = name
@@ -143,6 +146,27 @@ struct PostSaveHook: Codable, Identifiable, Equatable {
         self.timeoutSeconds = timeoutSeconds
         self.permissionMode = permissionMode
         self.allowedTools = allowedTools
+        self.showInContextMenu = showInContextMenu
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, name, enabled, vaultID, trigger, action
+        case timeoutSeconds, permissionMode, allowedTools
+        case showInContextMenu
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(UUID.self, forKey: .id)
+        name = try c.decode(String.self, forKey: .name)
+        enabled = try c.decode(Bool.self, forKey: .enabled)
+        vaultID = try c.decodeIfPresent(UUID.self, forKey: .vaultID)
+        trigger = try c.decode(HookTrigger.self, forKey: .trigger)
+        action = try c.decode(PostSaveAction.self, forKey: .action)
+        timeoutSeconds = try c.decodeIfPresent(Double.self, forKey: .timeoutSeconds)
+        permissionMode = try c.decodeIfPresent(ClaudePermissionMode.self, forKey: .permissionMode)
+        allowedTools = try c.decodeIfPresent(String.self, forKey: .allowedTools)
+        showInContextMenu = try c.decodeIfPresent(Bool.self, forKey: .showInContextMenu) ?? false
     }
 
     /// Default permission mode for new hooks — `acceptEdits` is the sweet spot

@@ -13,6 +13,7 @@ struct RecentConversion: Identifiable {
     let timestamp: Date
     let vaultID: UUID?
     let vaultName: String?
+    let noteType: HookTrigger   // .meeting or .email
 }
 
 @MainActor
@@ -356,7 +357,8 @@ final class AppViewModel {
                     outputURL: existingURL,
                     timestamp: Date(),
                     vaultID: vault.id,
-                    vaultName: vault.name
+                    vaultName: vault.name,
+                    noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
                 Self.logger.info("Updated thread: \(existingURL.lastPathComponent, privacy: .public)")
@@ -379,7 +381,8 @@ final class AppViewModel {
                     outputURL: outputURL,
                     timestamp: Date(),
                     vaultID: vault.id,
-                    vaultName: vault.name
+                    vaultName: vault.name,
+                    noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
                 Self.logger.info("Converted email: \(filename, privacy: .public)")
@@ -550,7 +553,8 @@ final class AppViewModel {
                 outputURL: outputURL,
                 timestamp: Date(),
                 vaultID: vault.id,
-                vaultName: vault.name
+                vaultName: vault.name,
+                noteType: .meeting
             )
             recentConversions.insert(conversion, at: 0)
             Self.logger.info("Converted \(filename, privacy: .public)")
@@ -624,6 +628,35 @@ final class AppViewModel {
     func cancelHookRun(_ run: HookRun) {
         guard !run.isComplete else { return }
         Task { await HookRunner.cancel(runID: run.id) }
+    }
+
+    /// Fire a single hook against an existing note from the context menu.
+    /// Builds a minimal `HookContext` from the conversion record — rich metadata
+    /// (organizer, attendees, etc.) is not available after save, so those
+    /// template variables will be empty strings.
+    func runHook(_ hook: PostSaveHook, for conversion: RecentConversion) {
+        guard let vaultID = conversion.vaultID,
+              let vault = settings.vault(id: vaultID) else { return }
+        let context = HookContext.fromConversion(conversion, vault: vault)
+        HookRunner.fire(
+            hooks: [hook],
+            context: context,
+            customSkillPaths: settings.customSkillPaths,
+            bypassVaultFilter: true,
+            onStart: { [weak self] run in
+                guard let self else { return }
+                self.hookRuns.insert(run, at: 0)
+                if self.hookRuns.count > Self.maxHookRuns {
+                    self.hookRuns = Array(self.hookRuns.prefix(Self.maxHookRuns))
+                }
+            },
+            onFinish: { [weak self] run in
+                guard let self else { return }
+                if let idx = self.hookRuns.firstIndex(where: { $0.id == run.id }) {
+                    self.hookRuns[idx] = run
+                }
+            }
+        )
     }
 
     // MARK: - Utilities

@@ -660,6 +660,7 @@ struct HookEditorSheet: View {
                     Section("General") {
                         TextField("Name", text: $hook.name)
                         Toggle("Enabled", isOn: $hook.enabled)
+                        Toggle("Show in context menu", isOn: $hook.showInContextMenu)
                     }
 
                     Section("When to run") {

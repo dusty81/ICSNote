@@ -54,10 +54,15 @@ enum HookRunner {
         hooks: [PostSaveHook],
         context: HookContext,
         customSkillPaths: [String] = [],
+        bypassVaultFilter: Bool = false,
         onStart: (@Sendable @MainActor (HookRun) -> Void)? = nil,
         onFinish: (@Sendable @MainActor (HookRun) -> Void)? = nil
     ) {
-        let applicable = hooks.filter { $0.matches(vaultID: context.vaultID, noteType: context.noteType) }
+        let applicable = hooks.filter {
+            bypassVaultFilter
+                ? $0.enabled && ($0.trigger == .any || $0.trigger == context.noteType)
+                : $0.matches(vaultID: context.vaultID, noteType: context.noteType)
+        }
         guard !applicable.isEmpty else { return }
 
         logger.info("Firing \(applicable.count, privacy: .public) hook(s) for \(context.filename, privacy: .public)")
