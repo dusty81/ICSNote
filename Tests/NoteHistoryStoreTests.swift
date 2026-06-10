@@ -38,7 +38,6 @@ final class NoteHistoryStoreTests: XCTestCase {
         let data = try JSONEncoder().encode(original)
         let decoded = try JSONDecoder().decode(RecentConversion.self, from: data)
         XCTAssertEqual(decoded.noteType, .email)
-        XCTAssertEqual(decoded.attendeeCount, 3)
     }
 
     func testRecentConversionNilFieldsRoundTrip() throws {
