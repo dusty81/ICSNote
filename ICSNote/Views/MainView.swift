@@ -375,7 +375,11 @@ struct MainView: View {
     }
 
     private func recentRow(_ conversion: RecentConversion) -> some View {
-        HStack(spacing: 10) {
+        // Computed during body so @Observable tracks settings.hooks as a dependency
+        // and rebuilds the view (and this closure) when hooks change.
+        let eligibleHooks = contextMenuHooks(for: conversion)
+
+        return HStack(spacing: 10) {
             Image(systemName: "checkmark").font(.caption).foregroundStyle(.green)
             VStack(alignment: .leading, spacing: 2) {
                 Text(conversion.filename.replacingOccurrences(of: ".md", with: ""))
@@ -414,14 +418,9 @@ struct MainView: View {
         .padding(10)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
         .contextMenu {
-            let hooks = contextMenuHooks(for: conversion)
-            if hooks.isEmpty {
-                Text("No hooks in context menu")
-            } else {
-                ForEach(hooks) { hook in
-                    Button(hook.name) {
-                        viewModel.runHook(hook, for: conversion)
-                    }
+            ForEach(eligibleHooks) { hook in
+                Button(hook.name) {
+                    viewModel.runHook(hook, for: conversion)
                 }
             }
         }
