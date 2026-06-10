@@ -132,4 +132,43 @@ final class HookContextTests: XCTestCase {
         hook.enabled = true
         XCTAssertTrue(hook.matches(vaultID: UUID(), noteType: .meeting))
     }
+
+    // MARK: - showInContextMenu
+
+    func testShowInContextMenuDefaultsFalse() {
+        let hook = PostSaveHook(
+            name: "Test",
+            trigger: .any,
+            action: .claudeSkill(skillName: "x", promptTemplate: "")
+        )
+        XCTAssertFalse(hook.showInContextMenu)
+    }
+
+    func testShowInContextMenuRoundTrips() throws {
+        let hook = PostSaveHook(
+            name: "Context hook",
+            trigger: .meeting,
+            action: .claudeSkill(skillName: "summary", promptTemplate: ""),
+            showInContextMenu: true
+        )
+        let data = try JSONEncoder().encode(hook)
+        let decoded = try JSONDecoder().decode(PostSaveHook.self, from: data)
+        XCTAssertTrue(decoded.showInContextMenu)
+
+        var hook2 = hook
+        hook2.showInContextMenu = false
+        let data2 = try JSONEncoder().encode(hook2)
+        let decoded2 = try JSONDecoder().decode(PostSaveHook.self, from: data2)
+        XCTAssertFalse(decoded2.showInContextMenu)
+    }
+
+    func testShowInContextMenuDecodesFromLegacyJSON() throws {
+        // JSON without the key at all (old persisted data) must decode with false
+        let json = """
+        {"id":"00000000-0000-0000-0000-000000000001","name":"old hook","enabled":true,
+         "trigger":"any","action":{"claudeSkill":{"skillName":"x","promptTemplate":""}}}
+        """
+        let hook = try JSONDecoder().decode(PostSaveHook.self, from: json.data(using: .utf8)!)
+        XCTAssertFalse(hook.showInContextMenu)
+    }
 }
