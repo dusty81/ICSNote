@@ -81,11 +81,8 @@ struct HistoryView: View {
             Text("\(viewModel.allHistory.count) note\(viewModel.allHistory.count == 1 ? "" : "s")")
                 .font(.caption2).foregroundStyle(.secondary)
             Spacer()
-            let missingCount = viewModel.allHistory.filter {
-                !FileManager.default.fileExists(atPath: $0.outputURL.path)
-            }.count
-            if missingCount > 0 {
-                Button("Remove \(missingCount) unavailable") {
+            if viewModel.missingHistoryCount > 0 {
+                Button("Remove \(viewModel.missingHistoryCount) unavailable") {
                     viewModel.removeMissingHistoryEntries()
                 }
                 .font(.caption2).foregroundStyle(.orange)

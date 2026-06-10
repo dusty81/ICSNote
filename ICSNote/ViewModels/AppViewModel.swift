@@ -51,6 +51,10 @@ final class AppViewModel {
     var allHistory: [RecentConversion] = []
     private static let maxHookRuns = 100
 
+    var missingHistoryCount: Int {
+        allHistory.filter { !FileManager.default.fileExists(atPath: $0.outputURL.path) }.count
+    }
+
     var hasRunningHooks: Bool {
         hookRuns.contains { !$0.isComplete }
     }
