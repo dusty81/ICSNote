@@ -42,6 +42,7 @@ final class AppSettings {
     var pdfConversionMode: PDFConversionMode { didSet { save() } }
     var hooks: [PostSaveHook] { didSet { save() } }
     var customSkillPaths: [String] { didSet { save() } }
+    var historyLimit: Int { didSet { save() } }
 
     // MARK: - Computed
 
@@ -102,6 +103,7 @@ final class AppSettings {
             self.hooks = []
         }
         self.customSkillPaths = defaults.stringArray(forKey: "customSkillPaths") ?? []
+        self.historyLimit = defaults.object(forKey: "historyLimit") as? Int ?? 500
 
         if let data = defaults.data(forKey: "textReplacements"),
            let decoded = try? JSONDecoder().decode([TextReplacement].self, from: data) {
@@ -174,5 +176,6 @@ final class AppSettings {
             defaults.set(data, forKey: "hooks")
         }
         defaults.set(customSkillPaths, forKey: "customSkillPaths")
+        defaults.set(historyLimit, forKey: "historyLimit")
     }
 }

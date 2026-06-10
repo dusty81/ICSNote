@@ -46,6 +46,9 @@ final class AppViewModel {
     // Hook execution state — maintained for the Activity window.
     // Capped at 100 entries; oldest are dropped.
     var hookRuns: [HookRun] = []
+
+    // Persistent history — loaded from disk on init, updated on every conversion.
+    var allHistory: [RecentConversion] = []
     private static let maxHookRuns = 100
 
     var hasRunningHooks: Bool {
@@ -71,6 +74,7 @@ final class AppViewModel {
 
     init(settings: AppSettings) {
         self.settings = settings
+        self.allHistory = NoteHistoryStore.load()
     }
 
     // MARK: - Drop Handling
@@ -375,6 +379,9 @@ final class AppViewModel {
                     noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
+                allHistory.insert(conversion, at: 0)
+                if allHistory.count > settings.historyLimit { allHistory = Array(allHistory.prefix(settings.historyLimit)) }
+                NoteHistoryStore.save(allHistory)
                 Self.logger.info("Updated thread: \(existingURL.lastPathComponent, privacy: .public)")
             } else {
                 let markdown = MarkdownGenerator.generate(
@@ -399,6 +406,9 @@ final class AppViewModel {
                     noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
+                allHistory.insert(conversion, at: 0)
+                if allHistory.count > settings.historyLimit { allHistory = Array(allHistory.prefix(settings.historyLimit)) }
+                NoteHistoryStore.save(allHistory)
                 Self.logger.info("Converted email: \(filename, privacy: .public)")
             }
 
@@ -571,6 +581,9 @@ final class AppViewModel {
                 noteType: .meeting
             )
             recentConversions.insert(conversion, at: 0)
+            allHistory.insert(conversion, at: 0)
+            if allHistory.count > settings.historyLimit { allHistory = Array(allHistory.prefix(settings.historyLimit)) }
+            NoteHistoryStore.save(allHistory)
             Self.logger.info("Converted \(filename, privacy: .public)")
 
             if settings.playSuccessSound {
@@ -635,6 +648,23 @@ final class AppViewModel {
 
     func clearHookRuns() {
         hookRuns.removeAll()
+    }
+
+    func clearHistory() {
+        allHistory.removeAll()
+        NoteHistoryStore.save(allHistory)
+    }
+
+    func removeMissingHistoryEntries() {
+        allHistory = allHistory.filter {
+            FileManager.default.fileExists(atPath: $0.outputURL.path)
+        }
+        NoteHistoryStore.save(allHistory)
+    }
+
+    func removeHistoryEntry(_ conversion: RecentConversion) {
+        allHistory.removeAll { $0.id == conversion.id }
+        NoteHistoryStore.save(allHistory)
     }
 
     /// Cancel a running hook. Fire-and-forget — the onFinish callback will
