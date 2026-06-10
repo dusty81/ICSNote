@@ -55,6 +55,29 @@ struct HookContext {
         )
     }
 
+    /// Build a context from a `RecentConversion` for on-demand hook execution.
+    /// Meeting/email-specific metadata (organizer, attendees, etc.) is not
+    /// available after the fact, so those fields are left empty. The variables
+    /// {{file_path}}, {{filename}}, {{vault_*}}, {{note_type}}, {{title}}, and
+    /// {{date}} are fully populated.
+    static func fromConversion(_ conversion: RecentConversion, vault: VaultConfig) -> HookContext {
+        HookContext(
+            filePath: conversion.outputURL.path,
+            filename: conversion.outputURL.lastPathComponent,
+            vaultID: vault.id,
+            vaultName: vault.name,
+            vaultPath: vault.path,
+            noteType: conversion.noteType,
+            title: conversion.outputURL.deletingPathExtension().lastPathComponent,
+            date: conversion.timestamp,
+            organizer: nil,
+            attendees: [],
+            from: nil,
+            recipients: [],
+            attachmentPaths: []
+        )
+    }
+
     // MARK: - Variable Substitution
 
     /// Replace `{{variable}}` tokens in a template. Unknown variables are left as-is.
