@@ -51,9 +51,7 @@ final class AppViewModel {
     var allHistory: [RecentConversion] = []
     private static let maxHookRuns = 100
 
-    var missingHistoryCount: Int {
-        allHistory.filter { !FileManager.default.fileExists(atPath: $0.outputURL.path) }.count
-    }
+    private(set) var missingHistoryCount: Int = 0
 
     var hasRunningHooks: Bool {
         hookRuns.contains { !$0.isComplete }
@@ -79,6 +77,7 @@ final class AppViewModel {
     init(settings: AppSettings) {
         self.settings = settings
         self.allHistory = NoteHistoryStore.load()
+        recomputeMissingCount()
     }
 
     // MARK: - Drop Handling
@@ -651,6 +650,7 @@ final class AppViewModel {
     func clearHistory() {
         allHistory.removeAll()
         NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
     }
 
     func removeMissingHistoryEntries() {
@@ -658,11 +658,13 @@ final class AppViewModel {
             FileManager.default.fileExists(atPath: $0.outputURL.path)
         }
         NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
     }
 
     func removeHistoryEntry(_ conversion: RecentConversion) {
         allHistory.removeAll { $0.id == conversion.id }
         NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
     }
 
     /// Cancel a running hook. Fire-and-forget — the onFinish callback will
@@ -703,12 +705,19 @@ final class AppViewModel {
 
     // MARK: - Utilities
 
+    private func recomputeMissingCount() {
+        missingHistoryCount = allHistory.filter {
+            !FileManager.default.fileExists(atPath: $0.outputURL.path)
+        }.count
+    }
+
     private func appendHistory(_ conversion: RecentConversion) {
         allHistory.insert(conversion, at: 0)
         if allHistory.count > settings.historyLimit {
             allHistory.removeLast(allHistory.count - settings.historyLimit)
         }
         NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
     }
 
     func revealInFinder(_ conversion: RecentConversion) {

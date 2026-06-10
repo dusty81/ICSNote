@@ -78,6 +78,8 @@ final class NoteHistoryStoreTests: XCTestCase {
         XCTAssertEqual(loaded.count, 2)
         XCTAssertEqual(loaded[0].filename, entries[0].filename)
         XCTAssertEqual(loaded[1].noteType, .email)
+        XCTAssertEqual(loaded[0].id, entries[0].id)
+        XCTAssertEqual(loaded[1].id, entries[1].id)
     }
 
     func testSaveOverwritesExistingFile() throws {
