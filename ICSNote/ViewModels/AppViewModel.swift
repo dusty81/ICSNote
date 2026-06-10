@@ -13,6 +13,7 @@ struct RecentConversion: Identifiable {
     let timestamp: Date
     let vaultID: UUID?
     let vaultName: String?
+    let noteType: HookTrigger   // .meeting or .email
 }
 
 @MainActor
@@ -356,7 +357,8 @@ final class AppViewModel {
                     outputURL: existingURL,
                     timestamp: Date(),
                     vaultID: vault.id,
-                    vaultName: vault.name
+                    vaultName: vault.name,
+                    noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
                 Self.logger.info("Updated thread: \(existingURL.lastPathComponent, privacy: .public)")
@@ -379,7 +381,8 @@ final class AppViewModel {
                     outputURL: outputURL,
                     timestamp: Date(),
                     vaultID: vault.id,
-                    vaultName: vault.name
+                    vaultName: vault.name,
+                    noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
                 Self.logger.info("Converted email: \(filename, privacy: .public)")
@@ -550,7 +553,8 @@ final class AppViewModel {
                 outputURL: outputURL,
                 timestamp: Date(),
                 vaultID: vault.id,
-                vaultName: vault.name
+                vaultName: vault.name,
+                noteType: .meeting
             )
             recentConversions.insert(conversion, at: 0)
             Self.logger.info("Converted \(filename, privacy: .public)")
