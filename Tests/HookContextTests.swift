@@ -209,12 +209,13 @@ final class HookContextTests: XCTestCase {
     func testFromConversionEmailContext() {
         let vault = VaultConfig(name: "Personal", path: "/Obsidian/Personal", enabled: true)
         let outputURL = URL(fileURLWithPath: "/Obsidian/Personal/Emails/2026-06-10 Invoice.md")
+        let ts = Date(timeIntervalSince1970: 1_749_686_400)
         let conversion = RecentConversion(
             filename: "2026-06-10 Invoice.md",
             attendeeCount: 0,
             strippedInfo: nil,
             outputURL: outputURL,
-            timestamp: Date(),
+            timestamp: ts,
             vaultID: vault.id,
             vaultName: vault.name,
             noteType: .email
@@ -224,6 +225,7 @@ final class HookContextTests: XCTestCase {
 
         XCTAssertEqual(ctx.noteType, .email)
         XCTAssertEqual(ctx.title, "2026-06-10 Invoice")
+        XCTAssertEqual(ctx.date, ts)
     }
 
     func testFromConversionSubstitutesFilePathVariable() {
