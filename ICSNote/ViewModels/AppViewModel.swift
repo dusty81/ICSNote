@@ -4,8 +4,8 @@ import UniformTypeIdentifiers
 import AppKit
 import os
 
-struct RecentConversion: Identifiable {
-    let id = UUID()
+struct RecentConversion: Identifiable, Codable {
+    let id: UUID
     let filename: String
     let attendeeCount: Int
     let strippedInfo: String?
@@ -14,6 +14,20 @@ struct RecentConversion: Identifiable {
     let vaultID: UUID?
     let vaultName: String?
     let noteType: HookTrigger   // .meeting or .email
+
+    init(filename: String, attendeeCount: Int, strippedInfo: String?,
+         outputURL: URL, timestamp: Date, vaultID: UUID?, vaultName: String?,
+         noteType: HookTrigger) {
+        self.id = UUID()
+        self.filename = filename
+        self.attendeeCount = attendeeCount
+        self.strippedInfo = strippedInfo
+        self.outputURL = outputURL
+        self.timestamp = timestamp
+        self.vaultID = vaultID
+        self.vaultName = vaultName
+        self.noteType = noteType
+    }
 }
 
 @MainActor
