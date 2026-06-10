@@ -56,4 +56,39 @@ final class NoteHistoryStoreTests: XCTestCase {
         XCTAssertNil(decoded.vaultID)
         XCTAssertNil(decoded.vaultName)
     }
+
+    // MARK: - NoteHistoryStore
+
+    func testLoadReturnsEmptyWhenFileAbsent() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-history-\(UUID().uuidString).json")
+        let entries = NoteHistoryStore.load(from: url)
+        XCTAssertTrue(entries.isEmpty)
+    }
+
+    func testSaveAndLoad() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-history-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let entries = [sampleConversion(), sampleConversion(noteType: .email)]
+        NoteHistoryStore.save(entries, to: url)
+
+        let loaded = NoteHistoryStore.load(from: url)
+        XCTAssertEqual(loaded.count, 2)
+        XCTAssertEqual(loaded[0].filename, entries[0].filename)
+        XCTAssertEqual(loaded[1].noteType, .email)
+    }
+
+    func testSaveOverwritesExistingFile() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent("test-history-\(UUID().uuidString).json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        NoteHistoryStore.save([sampleConversion()], to: url)
+        NoteHistoryStore.save([sampleConversion(), sampleConversion()], to: url)
+
+        let loaded = NoteHistoryStore.load(from: url)
+        XCTAssertEqual(loaded.count, 2)
+    }
 }
