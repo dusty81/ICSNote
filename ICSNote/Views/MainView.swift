@@ -413,6 +413,25 @@ struct MainView: View {
         }
         .padding(10)
         .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 8))
+        .contextMenu {
+            let hooks = contextMenuHooks(for: conversion)
+            if hooks.isEmpty {
+                Text("No hooks in context menu")
+            } else {
+                ForEach(hooks) { hook in
+                    Button(hook.name) {
+                        viewModel.runHook(hook, for: conversion)
+                    }
+                }
+            }
+        }
+    }
+
+    private func contextMenuHooks(for conversion: RecentConversion) -> [PostSaveHook] {
+        guard let vaultID = conversion.vaultID else { return [] }
+        return viewModel.settings.hooks.filter {
+            $0.showInContextMenu && $0.matches(vaultID: vaultID, noteType: conversion.noteType)
+        }
     }
 
     // MARK: - Status Bar
