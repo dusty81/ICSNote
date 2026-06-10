@@ -379,9 +379,7 @@ final class AppViewModel {
                     noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
-                allHistory.insert(conversion, at: 0)
-                if allHistory.count > settings.historyLimit { allHistory = Array(allHistory.prefix(settings.historyLimit)) }
-                NoteHistoryStore.save(allHistory)
+                appendHistory(conversion)
                 Self.logger.info("Updated thread: \(existingURL.lastPathComponent, privacy: .public)")
             } else {
                 let markdown = MarkdownGenerator.generate(
@@ -406,9 +404,7 @@ final class AppViewModel {
                     noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
-                allHistory.insert(conversion, at: 0)
-                if allHistory.count > settings.historyLimit { allHistory = Array(allHistory.prefix(settings.historyLimit)) }
-                NoteHistoryStore.save(allHistory)
+                appendHistory(conversion)
                 Self.logger.info("Converted email: \(filename, privacy: .public)")
             }
 
@@ -581,9 +577,7 @@ final class AppViewModel {
                 noteType: .meeting
             )
             recentConversions.insert(conversion, at: 0)
-            allHistory.insert(conversion, at: 0)
-            if allHistory.count > settings.historyLimit { allHistory = Array(allHistory.prefix(settings.historyLimit)) }
-            NoteHistoryStore.save(allHistory)
+            appendHistory(conversion)
             Self.logger.info("Converted \(filename, privacy: .public)")
 
             if settings.playSuccessSound {
@@ -704,6 +698,14 @@ final class AppViewModel {
     }
 
     // MARK: - Utilities
+
+    private func appendHistory(_ conversion: RecentConversion) {
+        allHistory.insert(conversion, at: 0)
+        if allHistory.count > settings.historyLimit {
+            allHistory.removeLast(allHistory.count - settings.historyLimit)
+        }
+        NoteHistoryStore.save(allHistory)
+    }
 
     func revealInFinder(_ conversion: RecentConversion) {
         NSWorkspace.shared.activateFileViewerSelecting([conversion.outputURL])
