@@ -679,6 +679,7 @@ final class AppViewModel {
     func rerunHookRun(_ run: HookRun) {
         guard run.isComplete,
               let hook = settings.hooks.first(where: { $0.id == run.hookID }),
+              hook.enabled,
               let vault = settings.vault(id: run.vaultID) else { return }
 
         let context = HookContext(
@@ -708,6 +709,9 @@ final class AppViewModel {
                     self.hookRuns[idx] = newRun
                 } else {
                     self.hookRuns.insert(newRun, at: 0)
+                    if self.hookRuns.count > Self.maxHookRuns {
+                        self.hookRuns = Array(self.hookRuns.prefix(Self.maxHookRuns))
+                    }
                 }
             },
             onFinish: { [weak self] newRun in
