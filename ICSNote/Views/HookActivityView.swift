@@ -61,7 +61,11 @@ struct HookActivityView: View {
         ScrollView {
             LazyVStack(spacing: 4) {
                 ForEach(viewModel.hookRuns) { run in
-                    HookRunRow(run: run, onCancel: { viewModel.cancelHookRun(run) })
+                    HookRunRow(
+                        run: run,
+                        onCancel: { viewModel.cancelHookRun(run) },
+                        onRerun: run.isComplete ? { viewModel.rerunHookRun(run) } : nil
+                    )
                 }
             }
             .padding(12)
@@ -74,6 +78,7 @@ struct HookActivityView: View {
 private struct HookRunRow: View {
     let run: HookRun
     var onCancel: (() -> Void)? = nil
+    var onRerun: (() -> Void)? = nil
     @State private var expanded = false
     @State private var tab: DetailTab = .stdout
 
@@ -172,6 +177,15 @@ private struct HookRunRow: View {
 
                 HStack {
                     Spacer()
+                    if onRerun != nil {
+                        Button {
+                            onRerun?()
+                        } label: {
+                            Label("Re-run", systemImage: "arrow.clockwise")
+                        }
+                        .controlSize(.small)
+                        .help("Re-run this hook against the same note")
+                    }
                     Button {
                         let s = textFor(tab)
                         NSPasteboard.general.clearContents()

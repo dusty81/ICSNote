@@ -4,8 +4,8 @@ import UniformTypeIdentifiers
 import AppKit
 import os
 
-struct RecentConversion: Identifiable {
-    let id = UUID()
+struct RecentConversion: Identifiable, Codable {
+    let id: UUID
     let filename: String
     let attendeeCount: Int
     let strippedInfo: String?
@@ -14,6 +14,20 @@ struct RecentConversion: Identifiable {
     let vaultID: UUID?
     let vaultName: String?
     let noteType: HookTrigger   // .meeting or .email
+
+    init(filename: String, attendeeCount: Int, strippedInfo: String?,
+         outputURL: URL, timestamp: Date, vaultID: UUID?, vaultName: String?,
+         noteType: HookTrigger) {
+        self.id = UUID()
+        self.filename = filename
+        self.attendeeCount = attendeeCount
+        self.strippedInfo = strippedInfo
+        self.outputURL = outputURL
+        self.timestamp = timestamp
+        self.vaultID = vaultID
+        self.vaultName = vaultName
+        self.noteType = noteType
+    }
 }
 
 @MainActor
@@ -32,7 +46,12 @@ final class AppViewModel {
     // Hook execution state — maintained for the Activity window.
     // Capped at 100 entries; oldest are dropped.
     var hookRuns: [HookRun] = []
+
+    // Persistent history — loaded from disk on init, updated on every conversion.
+    var allHistory: [RecentConversion] = []
     private static let maxHookRuns = 100
+
+    private(set) var missingHistoryCount: Int = 0
 
     var hasRunningHooks: Bool {
         hookRuns.contains { !$0.isComplete }
@@ -57,6 +76,8 @@ final class AppViewModel {
 
     init(settings: AppSettings) {
         self.settings = settings
+        self.allHistory = NoteHistoryStore.load()
+        recomputeMissingCount()
     }
 
     // MARK: - Drop Handling
@@ -361,6 +382,7 @@ final class AppViewModel {
                     noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
+                appendHistory(conversion)
                 Self.logger.info("Updated thread: \(existingURL.lastPathComponent, privacy: .public)")
             } else {
                 let markdown = MarkdownGenerator.generate(
@@ -385,6 +407,7 @@ final class AppViewModel {
                     noteType: .email
                 )
                 recentConversions.insert(conversion, at: 0)
+                appendHistory(conversion)
                 Self.logger.info("Converted email: \(filename, privacy: .public)")
             }
 
@@ -557,6 +580,7 @@ final class AppViewModel {
                 noteType: .meeting
             )
             recentConversions.insert(conversion, at: 0)
+            appendHistory(conversion)
             Self.logger.info("Converted \(filename, privacy: .public)")
 
             if settings.playSuccessSound {
@@ -623,11 +647,80 @@ final class AppViewModel {
         hookRuns.removeAll()
     }
 
+    func clearHistory() {
+        allHistory.removeAll()
+        NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
+    }
+
+    func removeMissingHistoryEntries() {
+        allHistory = allHistory.filter {
+            FileManager.default.fileExists(atPath: $0.outputURL.path)
+        }
+        NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
+    }
+
+    func removeHistoryEntry(_ conversion: RecentConversion) {
+        allHistory.removeAll { $0.id == conversion.id }
+        NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
+    }
+
     /// Cancel a running hook. Fire-and-forget — the onFinish callback will
     /// update the row's status to `.cancelled` when the process exits.
     func cancelHookRun(_ run: HookRun) {
         guard !run.isComplete else { return }
         Task { await HookRunner.cancel(runID: run.id) }
+    }
+
+    /// Re-fire a completed hook run against the same note, replacing the old
+    /// card in-place in the hookRuns list.
+    func rerunHookRun(_ run: HookRun) {
+        guard run.isComplete,
+              let hook = settings.hooks.first(where: { $0.id == run.hookID }),
+              hook.enabled,
+              let vault = settings.vault(id: run.vaultID) else { return }
+
+        let context = HookContext(
+            filePath: run.notePath,
+            filename: run.noteFilename,
+            vaultID: run.vaultID,
+            vaultName: run.vaultName,
+            vaultPath: vault.path,
+            noteType: run.noteType,
+            title: URL(fileURLWithPath: run.notePath).deletingPathExtension().lastPathComponent,
+            date: run.startedAt,
+            organizer: nil,
+            attendees: [],
+            from: nil,
+            recipients: [],
+            attachmentPaths: []
+        )
+        let oldRunID = run.id
+        HookRunner.fire(
+            hooks: [hook],
+            context: context,
+            customSkillPaths: settings.customSkillPaths,
+            bypassVaultFilter: true,
+            onStart: { [weak self] newRun in
+                guard let self else { return }
+                if let idx = self.hookRuns.firstIndex(where: { $0.id == oldRunID }) {
+                    self.hookRuns[idx] = newRun
+                } else {
+                    self.hookRuns.insert(newRun, at: 0)
+                    if self.hookRuns.count > Self.maxHookRuns {
+                        self.hookRuns = Array(self.hookRuns.prefix(Self.maxHookRuns))
+                    }
+                }
+            },
+            onFinish: { [weak self] newRun in
+                guard let self else { return }
+                if let idx = self.hookRuns.firstIndex(where: { $0.id == newRun.id }) {
+                    self.hookRuns[idx] = newRun
+                }
+            }
+        )
     }
 
     /// Fire a single hook against an existing note from the context menu.
@@ -660,6 +753,21 @@ final class AppViewModel {
     }
 
     // MARK: - Utilities
+
+    private func recomputeMissingCount() {
+        missingHistoryCount = allHistory.filter {
+            !FileManager.default.fileExists(atPath: $0.outputURL.path)
+        }.count
+    }
+
+    private func appendHistory(_ conversion: RecentConversion) {
+        allHistory.insert(conversion, at: 0)
+        if allHistory.count > settings.historyLimit {
+            allHistory.removeLast(allHistory.count - settings.historyLimit)
+        }
+        NoteHistoryStore.save(allHistory)
+        recomputeMissingCount()
+    }
 
     func revealInFinder(_ conversion: RecentConversion) {
         NSWorkspace.shared.activateFileViewerSelecting([conversion.outputURL])

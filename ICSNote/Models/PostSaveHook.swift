@@ -94,6 +94,10 @@ struct HookRun: Identifiable, Equatable, Sendable {
     var stdout: String = ""
     /// Standard error captured from the process. Always populated when finished.
     var stderr: String = ""
+    // Re-run support — enough to reconstruct a HookContext after the fact.
+    let vaultID: UUID
+    let notePath: String
+    let noteType: HookTrigger
 
     var isComplete: Bool {
         if case .running = status { return false }

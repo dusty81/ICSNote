@@ -228,6 +228,28 @@ final class HookContextTests: XCTestCase {
         XCTAssertEqual(ctx.date, ts)
     }
 
+    // MARK: - HookRun re-run fields
+
+    func testHookRunCarriesRerunFields() {
+        let vaultID = UUID()
+        let run = HookRun(
+            id: UUID(),
+            hookID: UUID(),
+            hookName: "Test Hook",
+            vaultName: "Work",
+            noteFilename: "2026-06-22 Standup.md",
+            startedAt: Date(),
+            finishedAt: nil,
+            status: .running,
+            vaultID: vaultID,
+            notePath: "/Obsidian/Work/Meetings/2026-06-22 Standup.md",
+            noteType: .meeting
+        )
+        XCTAssertEqual(run.vaultID, vaultID)
+        XCTAssertEqual(run.notePath, "/Obsidian/Work/Meetings/2026-06-22 Standup.md")
+        XCTAssertEqual(run.noteType, .meeting)
+    }
+
     func testFromConversionSubstitutesFilePathVariable() {
         let vault = VaultConfig(name: "Work", path: "/Obsidian/Work", enabled: true)
         let outputURL = URL(fileURLWithPath: "/Obsidian/Work/Meetings/My Note.md")

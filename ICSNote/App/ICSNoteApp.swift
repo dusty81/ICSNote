@@ -33,6 +33,17 @@ struct ICSNoteApp: App {
         }
         .windowResizability(.contentSize)
 
+        Window("Note History", id: "noteHistory") {
+            Group {
+                if let viewModel {
+                    HistoryView(viewModel: viewModel)
+                } else {
+                    ProgressView()
+                }
+            }
+        }
+        .windowResizability(.contentSize)
+
         Settings {
             SettingsView(settings: settings)
         }

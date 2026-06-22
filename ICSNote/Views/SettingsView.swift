@@ -129,16 +129,32 @@ struct SettingsView: View {
     // MARK: - Notes
 
     private var notesTab: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Meeting Notes Template").font(.headline)
-            Text("Markdown appended after the ## Notes heading in each meeting note.")
-                .font(.caption).foregroundStyle(.secondary)
-            TextEditor(text: $settings.notesTemplate)
-                .font(.system(.body, design: .monospaced))
-                .scrollContentBackground(.hidden)
-                .padding(8)
-                .background(RoundedRectangle(cornerRadius: 8).fill(.quaternary))
+        Form {
+            Section("Note History") {
+                Stepper(
+                    "Keep up to \(settings.historyLimit) notes",
+                    value: $settings.historyLimit,
+                    in: 50...5000,
+                    step: 50
+                )
+                Text("Oldest entries are pruned when the limit is reached.")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+
+            Section("Meeting Notes Template") {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Markdown appended after the ## Notes heading in each meeting note.")
+                        .font(.caption).foregroundStyle(.secondary)
+                    TextEditor(text: $settings.notesTemplate)
+                        .font(.system(.body, design: .monospaced))
+                        .scrollContentBackground(.hidden)
+                        .padding(4)
+                        .background(RoundedRectangle(cornerRadius: 6).fill(.quaternary))
+                        .frame(height: 80)
+                }
+            }
         }
+        .formStyle(.grouped)
         .padding()
     }
 }

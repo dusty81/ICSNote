@@ -76,7 +76,10 @@ enum HookRunner {
                 noteFilename: context.filename,
                 startedAt: Date(),
                 finishedAt: nil,
-                status: .running
+                status: .running,
+                vaultID: context.vaultID,
+                notePath: context.filePath,
+                noteType: context.noteType
             )
             Task.detached(priority: .utility) {
                 if let onStart {
