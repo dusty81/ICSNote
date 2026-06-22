@@ -104,6 +104,7 @@ struct HistoryView: View {
     private func historyRow(_ conversion: RecentConversion) -> some View {
         let fileExists = FileManager.default.fileExists(atPath: conversion.outputURL.path)
         let eligibleHooks = contextMenuHooks(for: conversion)
+        let hooks = runnableHooks(for: conversion)
 
         return HStack(spacing: 10) {
             Image(systemName: conversion.noteType == .email ? "envelope" : "calendar")
@@ -140,6 +141,19 @@ struct HistoryView: View {
 
             Spacer()
 
+            if !hooks.isEmpty {
+                Menu {
+                    ForEach(hooks) { hook in
+                        Button(hook.name) { viewModel.runHook(hook, for: conversion) }
+                    }
+                } label: {
+                    Image(systemName: "bolt")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
+                .menuStyle(.borderlessButton)
+                .fixedSize()
+                .help("Run a hook on this note")
+            }
             if viewModel.settings.isVaultConfigured && fileExists {
                 Button { viewModel.openInObsidian(conversion) } label: {
                     Image(systemName: "book").font(.caption2).foregroundStyle(.secondary)
@@ -183,6 +197,12 @@ struct HistoryView: View {
         viewModel.settings.hooks.filter {
             $0.showInContextMenu && $0.enabled &&
             ($0.trigger == .any || $0.trigger == conversion.noteType)
+        }
+    }
+
+    private func runnableHooks(for conversion: RecentConversion) -> [PostSaveHook] {
+        viewModel.settings.hooks.filter {
+            $0.enabled && ($0.trigger == .any || $0.trigger == conversion.noteType)
         }
     }
 }
