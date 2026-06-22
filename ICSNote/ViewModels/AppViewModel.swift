@@ -674,6 +674,51 @@ final class AppViewModel {
         Task { await HookRunner.cancel(runID: run.id) }
     }
 
+    /// Re-fire a completed hook run against the same note, replacing the old
+    /// card in-place in the hookRuns list.
+    func rerunHookRun(_ run: HookRun) {
+        guard run.isComplete,
+              let hook = settings.hooks.first(where: { $0.id == run.hookID }),
+              let vault = settings.vault(id: run.vaultID) else { return }
+
+        let context = HookContext(
+            filePath: run.notePath,
+            filename: run.noteFilename,
+            vaultID: run.vaultID,
+            vaultName: run.vaultName,
+            vaultPath: vault.path,
+            noteType: run.noteType,
+            title: URL(fileURLWithPath: run.notePath).deletingPathExtension().lastPathComponent,
+            date: run.startedAt,
+            organizer: nil,
+            attendees: [],
+            from: nil,
+            recipients: [],
+            attachmentPaths: []
+        )
+        let oldRunID = run.id
+        HookRunner.fire(
+            hooks: [hook],
+            context: context,
+            customSkillPaths: settings.customSkillPaths,
+            bypassVaultFilter: true,
+            onStart: { [weak self] newRun in
+                guard let self else { return }
+                if let idx = self.hookRuns.firstIndex(where: { $0.id == oldRunID }) {
+                    self.hookRuns[idx] = newRun
+                } else {
+                    self.hookRuns.insert(newRun, at: 0)
+                }
+            },
+            onFinish: { [weak self] newRun in
+                guard let self else { return }
+                if let idx = self.hookRuns.firstIndex(where: { $0.id == newRun.id }) {
+                    self.hookRuns[idx] = newRun
+                }
+            }
+        )
+    }
+
     /// Fire a single hook against an existing note from the context menu.
     /// Builds a minimal `HookContext` from the conversion record — rich metadata
     /// (organizer, attendees, etc.) is not available after save, so those
