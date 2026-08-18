@@ -573,6 +573,7 @@ struct VaultDropCell: View {
 struct RecurringDatePickerView: View {
     @Bindable var viewModel: AppViewModel
     @Environment(\.dismiss) private var dismiss
+    @FocusState private var isCreateButtonFocused: Bool
 
     private var timeRangeText: String {
         guard let event = viewModel.pendingEvent else { return "" }
@@ -630,9 +631,13 @@ struct RecurringDatePickerView: View {
                 }
                 .keyboardShortcut(.defaultAction)
                 .buttonStyle(.borderedProminent)
+                .focused($isCreateButtonFocused)
             }
         }
         .padding(24)
         .frame(width: 280)
+        .onAppear {
+            isCreateButtonFocused = true
+        }
     }
 }

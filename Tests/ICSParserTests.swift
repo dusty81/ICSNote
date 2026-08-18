@@ -227,6 +227,38 @@ final class ICSParserTests: XCTestCase {
         )
     }
 
+    func testSuggestedOccurrenceForPastModifiedInstanceIsToday() {
+        // A modified instance whose DTSTART is in the past (e.g. the only
+        // occurrence Outlook put on the pasteboard was a stale one) must not
+        // pre-select a date in the past.
+        let pastDate = Calendar.current.date(byAdding: .day, value: -3, to: Date())!
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd'T'HHmmss'Z'"
+        formatter.timeZone = TimeZone(identifier: "UTC")
+        let pastStr = formatter.string(from: pastDate)
+        let endStr = formatter.string(from: pastDate.addingTimeInterval(1800))
+        let ics = """
+        BEGIN:VCALENDAR
+        VERSION:2.0
+        BEGIN:VEVENT
+        SUMMARY:Past modified instance
+        RECURRENCE-ID:\(pastStr)
+        DTSTART:\(pastStr)
+        DTEND:\(endStr)
+        STATUS:CONFIRMED
+        END:VEVENT
+        END:VCALENDAR
+        """
+        let event = try! ICSParser.parse(ics)
+        XCTAssertTrue(event.isRecurring)
+        XCTAssertEqual(
+            event.suggestedOccurrenceDate.timeIntervalSinceNow,
+            0,
+            accuracy: 5,
+            "Past modified-instance date should not be pre-selected; default to today instead"
+        )
+    }
+
     func testSuggestedOccurrenceForSeriesDefinitionIsToday() {
         // A pure series definition (RRULE only, no RECURRENCE-ID) should
         // default the picker to today — the series start date is rarely what

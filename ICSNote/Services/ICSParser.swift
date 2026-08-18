@@ -106,14 +106,17 @@ enum ICSParser {
 
         // Best guess at which occurrence the user dragged, used as the date
         // picker default. Semantics:
-        //   • Modified instance (RECURRENCE-ID present): DTSTART IS that
-        //     occurrence's actual date — use it.
-        //   • Pure series definition (RRULE only): DTSTART is the series start,
-        //     which is rarely what the user wants. Default to today.
+        //   • Modified instance (RECURRENCE-ID present): DTSTART is that
+        //     occurrence's actual date, but selectNextOccurrence can still
+        //     fall back to a past instance (e.g. no future occurrence on the
+        //     pasteboard) — never pre-select a date in the past, default to
+        //     today instead.
+        //   • Pure series definition (RRULE only): DTSTART is the series
+        //     start, which is rarely what the user wants. Default to today.
         //   • Non-recurring: just use DTSTART.
         let suggestedOccurrenceDate: Date
         if hasRecurrenceID {
-            suggestedOccurrenceDate = startDate
+            suggestedOccurrenceDate = startDate >= Date() ? startDate : Date()
         } else if rruleString != nil {
             suggestedOccurrenceDate = Date()
         } else {
